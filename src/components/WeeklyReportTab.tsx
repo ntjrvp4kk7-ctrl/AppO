@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import {
   ChevronLeft,
   ChevronRight,
-  Printer,
+  Download,
   Mail,
   Copy,
   Check,
@@ -11,12 +11,15 @@ import {
   UserCheck,
   ChevronDown,
   ChevronUp,
+  FileText,
+  Loader2,
 } from 'lucide-react';
 import { DailyWorkLog, UserAccount, UnitPhoto } from '../types/worklog';
 import { getWeekRange, shiftWeek, formatShortDate } from '../utils/dateUtils';
 import { generateBossEmailContent } from '../utils/storage';
 import { WeeklyPrintView } from './WeeklyPrintView';
 import { ReportPreviewModal } from './ReportPreviewModal';
+import { downloadOrShareWeeklyPdf } from '../utils/pdfGenerator';
 
 interface WeeklyReportTabProps {
   currentDate: string;
@@ -54,6 +57,8 @@ export const WeeklyReportTab: React.FC<WeeklyReportTabProps> = ({
   const [showSignoffModal, setShowSignoffModal] = useState(false);
   const [showPreviewModal, setShowPreviewModal] = useState(false);
   const [signerName, setSignerName] = useState(profile.bossName);
+  const [isDownloadingPdf, setIsDownloadingPdf] = useState(false);
+  const [pdfDownloadedStatus, setPdfDownloadedStatus] = useState<string | null>(null);
 
   const weekRange = getWeekRange(weekStart);
   const dates = weekRange.dates;
@@ -81,8 +86,30 @@ export const WeeklyReportTab: React.FC<WeeklyReportTabProps> = ({
     }
   });
 
-  const handlePrint = () => {
-    window.print();
+  const handleDownloadPdf = async () => {
+    try {
+      setIsDownloadingPdf(true);
+      setPdfDownloadedStatus('Building PDF...');
+      const res = await downloadOrShareWeeklyPdf({
+        dates,
+        logs,
+        profile,
+        supervisorSignature: isWeekApproved
+          ? {
+              signedBy: signerName || profile.bossName,
+              signedAt: new Date().toISOString(),
+            }
+          : undefined,
+      });
+      setPdfDownloadedStatus(res.shared ? 'Shared!' : 'Saved PDF!');
+      setTimeout(() => setPdfDownloadedStatus(null), 3000);
+    } catch (err) {
+      console.error('Error generating PDF:', err);
+      setPdfDownloadedStatus('Export failed');
+      setTimeout(() => setPdfDownloadedStatus(null), 3000);
+    } finally {
+      setIsDownloadingPdf(false);
+    }
   };
 
   const handleEmailBoss = () => {
@@ -208,42 +235,69 @@ export const WeeklyReportTab: React.FC<WeeklyReportTabProps> = ({
           </div>
         </div>
 
-        {/* Actions for Boss (NO SHEETS) */}
+        {/* Actions for Boss (NO SHEETS - REAL PDF EXPORT) */}
         <div className="bg-zinc-900/90 border border-zinc-800 rounded-2xl p-3.5 space-y-2.5">
           <div className="flex items-center justify-between text-xs">
-            <span className="font-bold text-zinc-200">Send to Boss</span>
+            <span className="font-bold text-zinc-200">Export & Send to Boss</span>
             <span className="text-zinc-500">{profile.bossName} ({profile.bossEmail || 'No email'})</span>
           </div>
 
-          <div className="grid grid-cols-3 gap-2">
+          {/* Primary Row: Direct PDF Download & Full Scroll Preview */}
+          <div className="grid grid-cols-2 gap-2">
             <button
-              onClick={handleEmailBoss}
-              className="py-2.5 px-3 bg-emerald-500 hover:bg-emerald-400 text-zinc-950 font-bold rounded-xl text-xs active:scale-95 transition-all flex items-center justify-center gap-1.5 shadow-sm"
+              onClick={handleDownloadPdf}
+              disabled={isDownloadingPdf}
+              className="py-2.5 px-3 bg-emerald-500 hover:bg-emerald-400 text-zinc-950 font-black rounded-xl text-xs active:scale-95 transition-all flex items-center justify-center gap-1.5 shadow-md shadow-emerald-500/10 disabled:opacity-50 cursor-pointer"
             >
-              <Mail className="w-4 h-4" />
-              <span>Email Boss</span>
+              {isDownloadingPdf ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span>Building PDF...</span>
+                </>
+              ) : pdfDownloadedStatus ? (
+                <>
+                  <Check className="w-4 h-4 text-zinc-950" />
+                  <span>{pdfDownloadedStatus}</span>
+                </>
+              ) : (
+                <>
+                  <Download className="w-4 h-4" />
+                  <span>Download PDF</span>
+                </>
+              )}
             </button>
 
             <button
               onClick={() => setShowPreviewModal(true)}
-              className="py-2.5 px-3 bg-zinc-800 hover:bg-zinc-750 text-zinc-200 border border-zinc-700/80 font-bold rounded-xl text-xs active:scale-95 transition-all flex items-center justify-center gap-1.5"
+              className="py-2.5 px-3 bg-zinc-800 hover:bg-zinc-750 text-zinc-200 border border-zinc-700/80 font-bold rounded-xl text-xs active:scale-95 transition-all flex items-center justify-center gap-1.5 cursor-pointer"
             >
-              <Printer className="w-4 h-4 text-emerald-400" />
-              <span>Print / PDF</span>
+              <FileText className="w-4 h-4 text-emerald-400" />
+              <span>View & Scroll Report</span>
+            </button>
+          </div>
+
+          {/* Secondary Row: Email & Copy Summary */}
+          <div className="grid grid-cols-2 gap-2 pt-0.5">
+            <button
+              onClick={handleEmailBoss}
+              className="py-2 px-3 bg-zinc-950 hover:bg-zinc-900 text-zinc-300 border border-zinc-800 font-semibold rounded-xl text-xs active:scale-95 transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+            >
+              <Mail className="w-3.5 h-3.5 text-zinc-400" />
+              <span>Email Boss</span>
             </button>
 
             <button
               onClick={handleCopySummary}
-              className="py-2.5 px-3 bg-zinc-800 hover:bg-zinc-750 text-zinc-200 border border-zinc-700/80 font-bold rounded-xl text-xs active:scale-95 transition-all flex items-center justify-center gap-1.5"
+              className="py-2 px-3 bg-zinc-950 hover:bg-zinc-900 text-zinc-300 border border-zinc-800 font-semibold rounded-xl text-xs active:scale-95 transition-all flex items-center justify-center gap-1.5 cursor-pointer"
             >
               {copiedText ? (
                 <>
-                  <Check className="w-4 h-4 text-emerald-400" />
+                  <Check className="w-3.5 h-3.5 text-emerald-400" />
                   <span className="text-emerald-400">Copied!</span>
                 </>
               ) : (
                 <>
-                  <Copy className="w-4 h-4 text-zinc-400" />
+                  <Copy className="w-3.5 h-3.5 text-zinc-400" />
                   <span>Copy Text</span>
                 </>
               )}
