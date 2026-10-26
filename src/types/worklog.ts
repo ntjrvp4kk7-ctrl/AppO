@@ -1,42 +1,78 @@
-export type PhotoCategory = 'Before' | 'After' | 'Equipment Tag' | 'Issue / Damage' | 'Work Done' | 'Parts / Slip' | 'Other';
+export type PhotoCategory =
+  | 'Damage / Hole'
+  | 'Before Repair'
+  | 'Mud / Patch Progress'
+  | 'Texture Match'
+  | 'After / Finished'
+  | 'Paint Code / Can';
 
 export interface WorkPhoto {
   id: string;
-  dataUrl: string; // base64 or blob url
+  dataUrl: string;
   category: PhotoCategory;
   caption: string;
-  unitId?: string; // linked unit
-  timestamp: string; // ISO string
+  repairId?: string; // links to specific unit repair
+  timestamp: string;
 }
 
-export type UnitStatus = 'Diagnosed' | 'In Progress' | 'Parts Needed' | 'Completed' | 'Tested & Passed' | 'Requires Follow-up';
+export type DamageType =
+  | 'Doorknob / Fist Hole'
+  | 'Water Damage / Ceiling Leak'
+  | 'Drywall Stress Crack'
+  | 'Corner Bead Dent / Pop'
+  | 'Nail Pops / Anchor Holes'
+  | 'Peeling Paint / Scrape'
+  | 'Large Sheetrock Replacement'
+  | 'Other Wall/Ceiling Damage';
 
-export interface PartItem {
+export type TextureType =
+  | 'Orange Peel (Light)'
+  | 'Orange Peel (Medium)'
+  | 'Knockdown'
+  | 'Smooth / Flat'
+  | 'Popcorn Ceiling'
+  | 'Custom / Skip Trowel';
+
+export type RepairStage =
+  | 'Damage Documented'
+  | 'Patched & Taped'
+  | 'Mudded & Sanded'
+  | 'Texture Matched'
+  | 'Primed'
+  | 'Painted & Completed';
+
+export interface UnitRepair {
   id: string;
-  partNumber: string;
-  description: string;
-  quantity: number;
+  unitNumber: string; // e.g. "Unit 304", "Apt 12B"
+  roomArea: string; // e.g. "Living Room behind door", "Master Bath Ceiling"
+  damageType: DamageType;
+  damageSize?: string; // e.g. "8 inch hole", "2x3 ft cutout"
+  repairStage: RepairStage;
+  paintColor: string; // e.g. "SW 7029 Agreeable Gray", "Behr Swiss Coffee"
+  paintSheen: 'Flat / Matte' | 'Eggshell' | 'Satin' | 'Semi-Gloss';
+  primerUsed?: string; // e.g. "Kilz Stain Blocker", "PVA Primer"
+  compoundUsed?: string; // e.g. "Easy Sand 20", "Plus 3 All Purpose"
+  textureType: TextureType;
+  workDescription: string; // e.g. "Cut out water-damaged sheetrock, installed backing, hung 1/2in sheetrock, taped, 2 coats hot mud, textured, painted 2 coats."
 }
 
-export interface UnitDetail {
-  id: string;
-  unitNumber: string; // e.g. "Unit 402 - Bld B" or "Chiller #2"
-  equipmentType: string; // e.g. "Heat Pump 3-Ton", "Subpanel 200A", "Forklift #12"
-  location: string; // e.g. "4th Floor West Wing", "Roof Deck B"
-  workOrderNumber: string; // e.g. "WO-88219"
-  status: UnitStatus;
-  workPerformed: string; // Detailed description of labor
-  partsUsed: PartItem[];
-  technicianNotes?: string;
-}
+export type PaintDrywallLaborActivity =
+  | 'Drywall Hanging & Patching'
+  | 'Taping & Mudding'
+  | 'Sanding & Prep'
+  | 'Texture Spray & Blend'
+  | 'Priming & Stain Blocking'
+  | 'Finish Painting'
+  | 'Full Unit Turnover'
+  | 'Touch-up & Walkthrough';
 
 export interface TimeSection {
   startTime: string; // "07:30"
   endTime: string; // "16:00"
-  breakMinutes: number; // e.g. 30
-  laborCategory: 'Regular Service' | 'Emergency Repair' | 'Scheduled Maintenance' | 'Installation' | 'Inspection' | 'Travel';
-  overtimeHours: number; // calculated or manual
-  totalHours: number; // net calculated hours
+  breakMinutes: number; // 30
+  laborCategory: PaintDrywallLaborActivity;
+  overtimeHours: number;
+  totalHours: number;
   isClockRunning?: boolean;
   clockInTimestamp?: number;
 }
@@ -45,27 +81,20 @@ export interface DailyWorkLog {
   id: string;
   date: string; // "YYYY-MM-DD"
   time: TimeSection;
-  units: UnitDetail[];
+  repairs: UnitRepair[];
   photos: WorkPhoto[];
-  generalNotes: string;
-  weatherConditions?: string;
-  safetyCheckCompleted: boolean;
   status: 'Draft' | 'Submitted' | 'Approved';
   supervisorSignature?: {
     signedBy: string;
     signedAt: string;
-    signatureDataUrl?: string;
   };
 }
 
-export interface WorkerProfile {
+export interface UserAccount {
+  id: string;
+  email: string;
   workerName: string;
-  workerTitle: string;
-  employeeId: string;
-  companyName: string;
-  companyPhone: string;
   bossName: string;
   bossEmail: string;
-  hourlyRate?: number;
-  dailyOtThreshold: number; // default 8 hours
+  companyName: string;
 }

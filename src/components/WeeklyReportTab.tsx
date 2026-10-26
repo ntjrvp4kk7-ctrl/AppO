@@ -9,16 +9,15 @@ import {
   Copy,
   Check,
   Clock,
-  Wrench,
+  Paintbrush,
   Camera,
-  Award,
   ChevronDown,
   ChevronUp,
   UserCheck,
-  Send,
-  ExternalLink,
+  Home,
+  CheckCircle2,
 } from 'lucide-react';
-import { DailyWorkLog, WorkerProfile, WorkPhoto, UnitDetail } from '../types/worklog';
+import { DailyWorkLog, UserAccount, WorkPhoto, UnitRepair } from '../types/worklog';
 import { getWeekRange, shiftWeek, formatDisplayDate, formatShortDate } from '../utils/dateUtils';
 import { exportWeekToCsv, generateBossEmailContent } from '../utils/storage';
 import { WeeklyPrintView } from './WeeklyPrintView';
@@ -26,7 +25,7 @@ import { WeeklyPrintView } from './WeeklyPrintView';
 interface WeeklyReportTabProps {
   currentDate: string;
   logs: DailyWorkLog[];
-  profile: WorkerProfile;
+  profile: UserAccount;
   onSelectDate: (dateStr: string) => void;
   onOpenPhotoViewer: (photo: WorkPhoto) => void;
   onSaveLogs: (logs: DailyWorkLog[]) => void;
@@ -40,7 +39,6 @@ export const WeeklyReportTab: React.FC<WeeklyReportTabProps> = ({
   onOpenPhotoViewer,
   onSaveLogs,
 }) => {
-  // Current active week start (Monday)
   const [weekStart, setWeekStart] = useState<string>(() => {
     return getWeekRange(currentDate || new Date()).start;
   });
@@ -51,7 +49,7 @@ export const WeeklyReportTab: React.FC<WeeklyReportTabProps> = ({
   const [signerName, setSignerName] = useState(profile.bossName);
 
   const weekRange = getWeekRange(weekStart);
-  const dates = weekRange.dates; // Monday through Sunday
+  const dates = weekRange.dates;
 
   const handlePrevWeek = () => {
     setWeekStart(shiftWeek(weekStart, -1));
@@ -65,14 +63,14 @@ export const WeeklyReportTab: React.FC<WeeklyReportTabProps> = ({
     setWeekStart(getWeekRange(new Date()).start);
   };
 
-  // Compute weekly statistics
+  // Compute stats
   let totalHours = 0;
   let totalRegular = 0;
   let totalOvertime = 0;
-  let totalUnitsCount = 0;
+  let totalRepairsCount = 0;
   let totalPhotosCount = 0;
-  const weekPhotos: { photo: WorkPhoto; unitName?: string; date: string }[] = [];
-  const weekUnits: { unit: UnitDetail; date: string }[] = [];
+  const weekPhotos: { photo: WorkPhoto; repair?: UnitRepair; date: string }[] = [];
+  const weekRepairs: { repair: UnitRepair; date: string }[] = [];
 
   dates.forEach((dateStr) => {
     const log = logs.find((l) => l.date === dateStr);
@@ -80,21 +78,20 @@ export const WeeklyReportTab: React.FC<WeeklyReportTabProps> = ({
       totalHours += log.time.totalHours;
       totalRegular += Math.min(8, log.time.totalHours);
       totalOvertime += log.time.overtimeHours;
-      totalUnitsCount += log.units.length;
+      totalRepairsCount += log.repairs.length;
       totalPhotosCount += log.photos.length;
 
-      log.units.forEach((u) => {
-        weekUnits.push({ unit: u, date: dateStr });
+      log.repairs.forEach((r) => {
+        weekRepairs.push({ repair: r, date: dateStr });
       });
 
       log.photos.forEach((p) => {
-        const u = log.units.find((item) => item.id === p.unitId);
-        weekPhotos.push({ photo: p, unitName: u?.unitNumber, date: dateStr });
+        const r = log.repairs.find((item) => item.id === p.repairId);
+        weekPhotos.push({ photo: p, repair: r, date: dateStr });
       });
     }
   });
 
-  // Export handlers
   const handlePrint = () => {
     window.print();
   };
@@ -115,9 +112,7 @@ export const WeeklyReportTab: React.FC<WeeklyReportTabProps> = ({
     setTimeout(() => setCopiedText(false), 2500);
   };
 
-  // Signoff approval simulation
   const handleApproveWeek = () => {
-    // Stamp all logs in this week as Approved
     const updated = logs.map((l) => {
       if (dates.includes(l.date)) {
         return {
@@ -143,7 +138,7 @@ export const WeeklyReportTab: React.FC<WeeklyReportTabProps> = ({
 
   return (
     <div className="space-y-4">
-      {/* Printable version (visible only when window.print() is fired) */}
+      {/* Printable Report View (Visible only during window.print) */}
       <WeeklyPrintView
         dates={dates}
         logs={logs}
@@ -158,7 +153,6 @@ export const WeeklyReportTab: React.FC<WeeklyReportTabProps> = ({
         }
       />
 
-      {/* Screen View */}
       <div className="no-print space-y-4">
         {/* Week Selector Bar */}
         <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-3 sm:p-4 flex flex-col sm:flex-row items-center justify-between gap-3">
@@ -172,7 +166,7 @@ export const WeeklyReportTab: React.FC<WeeklyReportTabProps> = ({
             </button>
             <div className="text-center sm:text-left">
               <span className="text-[10px] uppercase font-bold tracking-wider text-amber-400 block">
-                Weekly Timesheet & Report
+                Weekly Paint & Drywall Report
               </span>
               <h2 className="text-sm sm:text-base font-extrabold text-white">
                 {formatShortDate(dates[0])} – {formatShortDate(dates[6])}
@@ -192,7 +186,7 @@ export const WeeklyReportTab: React.FC<WeeklyReportTabProps> = ({
               onClick={handleCurrentWeek}
               className="px-3 py-1.5 text-xs font-semibold text-neutral-300 hover:text-white bg-neutral-800 hover:bg-neutral-750 rounded-xl border border-neutral-700/80 transition-colors"
             >
-              This Week
+              Current Week
             </button>
             {isWeekApproved ? (
               <span className="flex items-center gap-1 px-2.5 py-1.5 bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs font-bold rounded-xl">
@@ -211,7 +205,7 @@ export const WeeklyReportTab: React.FC<WeeklyReportTabProps> = ({
           </div>
         </div>
 
-        {/* Weekly KPI Highlights Cards */}
+        {/* Weekly KPI Highlights */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
           <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-3.5">
             <div className="flex items-center justify-between text-neutral-400 mb-1">
@@ -228,55 +222,54 @@ export const WeeklyReportTab: React.FC<WeeklyReportTabProps> = ({
 
           <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-3.5">
             <div className="flex items-center justify-between text-neutral-400 mb-1">
-              <span className="text-[11px] font-semibold">Overtime</span>
-              <Award className="w-4 h-4 text-amber-400" />
-            </div>
-            <div className={`text-xl font-black font-mono-numbers ${totalOvertime > 0 ? 'text-amber-400' : 'text-neutral-400'}`}>
-              {totalOvertime.toFixed(1)} <span className="text-xs font-normal text-neutral-400">hrs</span>
-            </div>
-            <div className="text-[10px] text-neutral-500 mt-1">
-              {totalOvertime > 0 ? 'Requires OT rate' : 'Standard hours'}
-            </div>
-          </div>
-
-          <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-3.5">
-            <div className="flex items-center justify-between text-neutral-400 mb-1">
-              <span className="text-[11px] font-semibold">Units Serviced</span>
-              <Wrench className="w-4 h-4 text-sky-400" />
+              <span className="text-[11px] font-semibold">Units Repaired</span>
+              <Paintbrush className="w-4 h-4 text-emerald-400" />
             </div>
             <div className="text-xl font-black text-white font-mono-numbers">
-              {totalUnitsCount}
+              {totalRepairsCount}
             </div>
             <div className="text-[10px] text-neutral-500 mt-1">
-              Across {dates.filter((d) => logs.some((l) => l.date === d && l.units.length > 0)).length} days
+              Across {dates.filter((d) => logs.some((l) => l.date === d && l.repairs.length > 0)).length} days
             </div>
           </div>
 
           <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-3.5">
             <div className="flex items-center justify-between text-neutral-400 mb-1">
-              <span className="text-[11px] font-semibold">Photos Snapped</span>
-              <Camera className="w-4 h-4 text-emerald-400" />
+              <span className="text-[11px] font-semibold">Photo Proofs</span>
+              <Camera className="w-4 h-4 text-sky-400" />
             </div>
             <div className="text-xl font-black text-white font-mono-numbers">
               {totalPhotosCount}
             </div>
             <div className="text-[10px] text-neutral-500 mt-1">
-              Evidence attachments
+              Before / Damage & After
+            </div>
+          </div>
+
+          <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-3.5">
+            <div className="flex items-center justify-between text-neutral-400 mb-1">
+              <span className="text-[11px] font-semibold">Overtime</span>
+              <Clock className="w-4 h-4 text-amber-400" />
+            </div>
+            <div className={`text-xl font-black font-mono-numbers ${totalOvertime > 0 ? 'text-amber-400' : 'text-neutral-400'}`}>
+              {totalOvertime.toFixed(1)} <span className="text-xs font-normal text-neutral-400">hrs</span>
+            </div>
+            <div className="text-[10px] text-neutral-500 mt-1">
+              {totalOvertime > 0 ? 'OT payable' : 'Standard week'}
             </div>
           </div>
         </div>
 
-        {/* Export & Send Actions Toolbar */}
+        {/* Action Toolbar for Boss Export */}
         <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-3 sm:p-4 space-y-3">
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold text-neutral-200">Export Report for Boss</span>
             <span className="text-[11px] text-neutral-400">
-              Supervisor: {profile.bossName} ({profile.bossEmail})
+              Boss: {profile.bossName} ({profile.bossEmail || 'No email configured'})
             </span>
           </div>
 
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-            {/* Print / PDF Button */}
             <button
               onClick={handlePrint}
               className="flex items-center justify-center gap-2 py-2.5 px-3 bg-amber-500 hover:bg-amber-400 text-neutral-950 font-bold rounded-xl text-xs active:scale-[0.98] transition-all shadow-sm"
@@ -285,7 +278,6 @@ export const WeeklyReportTab: React.FC<WeeklyReportTabProps> = ({
               <span>Print / PDF</span>
             </button>
 
-            {/* Email to Boss Button */}
             <button
               onClick={handleEmailBoss}
               className="flex items-center justify-center gap-2 py-2.5 px-3 bg-neutral-800 hover:bg-neutral-750 text-neutral-200 border border-neutral-700/80 font-semibold rounded-xl text-xs active:scale-[0.98] transition-all"
@@ -294,7 +286,6 @@ export const WeeklyReportTab: React.FC<WeeklyReportTabProps> = ({
               <span>Email Boss</span>
             </button>
 
-            {/* Export CSV Spreadsheet */}
             <button
               onClick={handleExportCsv}
               className="flex items-center justify-center gap-2 py-2.5 px-3 bg-neutral-800 hover:bg-neutral-750 text-neutral-200 border border-neutral-700/80 font-semibold rounded-xl text-xs active:scale-[0.98] transition-all"
@@ -303,7 +294,6 @@ export const WeeklyReportTab: React.FC<WeeklyReportTabProps> = ({
               <span>CSV Sheet</span>
             </button>
 
-            {/* Copy Formatted Text */}
             <button
               onClick={handleCopySummary}
               className="flex items-center justify-center gap-2 py-2.5 px-3 bg-neutral-800 hover:bg-neutral-750 text-neutral-200 border border-neutral-700/80 font-semibold rounded-xl text-xs active:scale-[0.98] transition-all"
@@ -326,7 +316,7 @@ export const WeeklyReportTab: React.FC<WeeklyReportTabProps> = ({
         {/* Daily Breakdown List */}
         <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-4 space-y-3">
           <div className="flex items-center justify-between">
-            <h3 className="text-sm font-bold text-neutral-100">Daily Shift Breakdown</h3>
+            <h3 className="text-sm font-bold text-neutral-100">Daily Breakdown</h3>
             <span className="text-xs text-neutral-400 font-mono-numbers">
               {dates[0]} to {dates[6]}
             </span>
@@ -366,7 +356,7 @@ export const WeeklyReportTab: React.FC<WeeklyReportTabProps> = ({
                               {log.time.startTime} - {log.time.endTime}
                             </span>
                             <span>•</span>
-                            <span>{log.units.length} unit{log.units.length === 1 ? '' : 's'}</span>
+                            <span>{log.repairs.length} repair{log.repairs.length === 1 ? '' : 's'}</span>
                             <span>•</span>
                             <span>{log.photos.length} photo{log.photos.length === 1 ? '' : 's'}</span>
                           </>
@@ -398,28 +388,31 @@ export const WeeklyReportTab: React.FC<WeeklyReportTabProps> = ({
                     </div>
                   </div>
 
-                  {/* Expanded Accordion Details */}
                   {isExpanded && (
                     <div className="p-3.5 bg-neutral-900/70 border-t border-neutral-800 text-xs space-y-3">
                       {log ? (
                         <>
-                          {/* Units worked */}
                           <div>
-                            <span className="font-semibold text-neutral-300 block mb-1">
-                              Units Worked on {dayName}:
+                            <span className="font-semibold text-neutral-300 block mb-1.5">
+                              Units & Repairs on {dayName}:
                             </span>
-                            {log.units.length > 0 ? (
-                              <div className="space-y-1.5">
-                                {log.units.map((u) => (
+                            {log.repairs.length > 0 ? (
+                              <div className="space-y-2">
+                                {log.repairs.map((r) => (
                                   <div
-                                    key={u.id}
-                                    className="p-2 bg-neutral-950 rounded-lg border border-neutral-800 text-neutral-300"
+                                    key={r.id}
+                                    className="p-2.5 bg-neutral-950 rounded-lg border border-neutral-800 text-neutral-300 space-y-1"
                                   >
                                     <div className="flex justify-between font-bold text-white">
-                                      <span>{u.unitNumber}</span>
-                                      <span className="text-amber-400 font-normal">{u.status}</span>
+                                      <span>{r.unitNumber} • {r.roomArea}</span>
+                                      <span className="text-emerald-400 font-semibold">{r.repairStage}</span>
                                     </div>
-                                    <p className="text-[11px] text-neutral-400 mt-0.5">{u.workPerformed}</p>
+                                    <div className="text-[11px] text-amber-400 font-medium">
+                                      {r.damageType} {r.damageSize ? `(${r.damageSize})` : ''} • Color: {r.paintColor} [{r.paintSheen}]
+                                    </div>
+                                    {r.workDescription && (
+                                      <p className="text-[11px] text-neutral-400 mt-0.5">{r.workDescription}</p>
+                                    )}
                                   </div>
                                 ))}
                               </div>
@@ -428,17 +421,6 @@ export const WeeklyReportTab: React.FC<WeeklyReportTabProps> = ({
                             )}
                           </div>
 
-                          {/* Shift Notes */}
-                          {log.generalNotes && (
-                            <div>
-                              <span className="font-semibold text-neutral-300 block mb-0.5">Shift Notes:</span>
-                              <p className="text-neutral-400 italic bg-neutral-950 p-2 rounded-lg border border-neutral-800">
-                                {log.generalNotes}
-                              </p>
-                            </div>
-                          )}
-
-                          {/* Jump to edit */}
                           <div className="flex justify-end pt-1">
                             <button
                               onClick={() => onSelectDate(dateStr)}
@@ -467,10 +449,12 @@ export const WeeklyReportTab: React.FC<WeeklyReportTabProps> = ({
           </div>
         </div>
 
-        {/* Weekly Photo Gallery Evidence */}
+        {/* Weekly Before & After Photos Gallery */}
         <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-4 space-y-3">
           <div className="flex items-center justify-between">
-            <h3 className="text-sm font-bold text-neutral-100">Weekly Photo Evidence ({weekPhotos.length})</h3>
+            <h3 className="text-sm font-bold text-neutral-100">
+              Weekly Before / Damage & After Proof ({weekPhotos.length})
+            </h3>
             <span className="text-xs text-neutral-400">Tap to inspect</span>
           </div>
 
@@ -488,7 +472,15 @@ export const WeeklyReportTab: React.FC<WeeklyReportTabProps> = ({
                       alt={item.photo.caption}
                       className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
                     />
-                    <span className="absolute top-1 left-1 text-[9px] font-bold px-1.5 py-0.5 rounded bg-black/70 text-amber-300">
+                    <span
+                      className={`absolute top-1 left-1 text-[9px] font-bold px-1.5 py-0.5 rounded ${
+                        item.photo.category === 'After / Finished'
+                          ? 'bg-emerald-600 text-white'
+                          : item.photo.category === 'Damage / Hole' || item.photo.category === 'Before Repair'
+                          ? 'bg-rose-600 text-white'
+                          : 'bg-black/70 text-amber-300'
+                      }`}
+                    >
                       {item.photo.category}
                     </span>
                   </div>
@@ -497,7 +489,7 @@ export const WeeklyReportTab: React.FC<WeeklyReportTabProps> = ({
                       {item.photo.caption || 'Photo'}
                     </p>
                     <p className="text-[9px] text-neutral-500">
-                      {item.date} {item.unitName ? `• ${item.unitName}` : ''}
+                      {item.date} {item.repair ? `• ${item.repair.unitNumber}` : ''}
                     </p>
                   </div>
                 </div>
@@ -520,7 +512,7 @@ export const WeeklyReportTab: React.FC<WeeklyReportTabProps> = ({
               <h3 className="text-base font-bold text-white">Supervisor Weekly Sign-Off</h3>
             </div>
             <p className="text-xs text-neutral-400">
-              Sign off on {profile.workerName}'s timesheet ({totalHours.toFixed(1)} total hours, {weekUnits.length} units serviced) for {dates[0]} to {dates[6]}.
+              Sign off on {profile.workerName}'s timesheet ({totalHours.toFixed(1)} total hours, {weekRepairs.length} units repaired) for {dates[0]} to {dates[6]}.
             </p>
 
             <div>
@@ -545,8 +537,8 @@ export const WeeklyReportTab: React.FC<WeeklyReportTabProps> = ({
                 <span className="font-mono text-amber-400 font-bold">{totalOvertime.toFixed(1)} hrs</span>
               </div>
               <div className="flex justify-between text-neutral-400">
-                <span>Total Units & Tasks:</span>
-                <span className="font-mono text-white">{weekUnits.length} units</span>
+                <span>Total Unit Repairs:</span>
+                <span className="font-mono text-white">{weekRepairs.length} repairs</span>
               </div>
             </div>
 

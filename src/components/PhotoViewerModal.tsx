@@ -1,28 +1,28 @@
 import React from 'react';
-import { X, Calendar, Tag, Trash2, Download } from 'lucide-react';
-import { WorkPhoto, UnitDetail } from '../types/worklog';
+import { X, Calendar, Tag, Trash2, Download, Home, Paintbrush } from 'lucide-react';
+import { WorkPhoto, UnitRepair } from '../types/worklog';
 
 interface PhotoViewerModalProps {
   photo: WorkPhoto | null;
-  units?: UnitDetail[];
+  repairs?: UnitRepair[];
   onClose: () => void;
   onDelete?: (photoId: string) => void;
 }
 
 export const PhotoViewerModal: React.FC<PhotoViewerModalProps> = ({
   photo,
-  units = [],
+  repairs = [],
   onClose,
   onDelete,
 }) => {
   if (!photo) return null;
 
-  const linkedUnit = units.find((u) => u.id === photo.unitId);
+  const linkedRepair = repairs.find((r) => r.id === photo.repairId);
 
   const handleDownload = () => {
     const a = document.createElement('a');
     a.href = photo.dataUrl;
-    a.download = `WorkPhoto_${photo.category}_${photo.id}.jpg`;
+    a.download = `PaintDrywall_${photo.category.replace(/[^a-zA-Z0-9]/g, '_')}_${photo.id}.jpg`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -30,14 +30,16 @@ export const PhotoViewerModal: React.FC<PhotoViewerModalProps> = ({
 
   const getCategoryBadgeClass = (category: string) => {
     switch (category) {
-      case 'Before':
-        return 'text-amber-400 border-amber-500/30 bg-amber-500/10';
-      case 'After':
-      case 'Completed':
-        return 'text-emerald-400 border-emerald-500/30 bg-emerald-500/10';
-      case 'Issue / Damage':
+      case 'Damage / Hole':
+      case 'Before Repair':
         return 'text-rose-400 border-rose-500/30 bg-rose-500/10';
-      case 'Equipment Tag':
+      case 'After / Finished':
+        return 'text-emerald-400 border-emerald-500/30 bg-emerald-500/10';
+      case 'Mud / Patch Progress':
+        return 'text-amber-400 border-amber-500/30 bg-amber-500/10';
+      case 'Texture Match':
+        return 'text-cyan-400 border-cyan-500/30 bg-cyan-500/10';
+      case 'Paint Code / Can':
         return 'text-sky-400 border-sky-500/30 bg-sky-500/10';
       default:
         return 'text-neutral-300 border-neutral-700 bg-neutral-800';
@@ -57,12 +59,14 @@ export const PhotoViewerModal: React.FC<PhotoViewerModalProps> = ({
             >
               {photo.category}
             </span>
-            {linkedUnit && (
-              <span className="text-xs text-neutral-400 truncate max-w-[200px]">
-                Unit: {linkedUnit.unitNumber}
+            {linkedRepair && (
+              <span className="text-xs text-neutral-300 truncate max-w-[200px] flex items-center gap-1 font-medium">
+                <Home className="w-3.5 h-3.5 text-amber-400" />
+                {linkedRepair.unitNumber} ({linkedRepair.roomArea})
               </span>
             )}
           </div>
+
           <div className="flex items-center gap-1.5">
             <button
               onClick={handleDownload}
@@ -98,7 +102,7 @@ export const PhotoViewerModal: React.FC<PhotoViewerModalProps> = ({
         <div className="flex-1 bg-black/60 flex items-center justify-center overflow-auto p-2 min-h-[260px] max-h-[58vh]">
           <img
             src={photo.dataUrl}
-            alt={photo.caption || 'Work log photo'}
+            alt={photo.caption || 'Paint drywall repair photo'}
             className="max-h-[54vh] max-w-full object-contain rounded-md shadow-md select-none"
           />
         </div>
@@ -116,10 +120,12 @@ export const PhotoViewerModal: React.FC<PhotoViewerModalProps> = ({
               <Calendar className="w-3.5 h-3.5 text-neutral-500" />
               <span>{new Date(photo.timestamp).toLocaleString()}</span>
             </div>
-            {linkedUnit && (
+            {linkedRepair && (
               <div className="flex items-center gap-1.5">
-                <Tag className="w-3.5 h-3.5 text-neutral-500" />
-                <span className="text-neutral-300">{linkedUnit.equipmentType || linkedUnit.unitNumber}</span>
+                <Paintbrush className="w-3.5 h-3.5 text-amber-400" />
+                <span className="text-neutral-300 font-medium">
+                  {linkedRepair.damageType} • Color: {linkedRepair.paintColor}
+                </span>
               </div>
             )}
           </div>

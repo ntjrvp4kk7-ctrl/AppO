@@ -1,29 +1,41 @@
-import React, { useRef, useState } from 'react';
-import { Camera, Image as ImageIcon, Plus, Trash2, Maximize2, Tag, Check, Sparkles } from 'lucide-react';
-import { WorkPhoto, PhotoCategory, UnitDetail } from '../types/worklog';
+import React, { useRef, useState, useEffect } from 'react';
+import { Camera, Image as ImageIcon, Trash2, Maximize2, Check, Sparkles } from 'lucide-react';
+import { WorkPhoto, PhotoCategory, UnitRepair } from '../types/worklog';
 import { compressImage } from '../utils/photoUtils';
 
 interface PhotoSnapSectionProps {
   photos: WorkPhoto[];
-  units: UnitDetail[];
+  repairs: UnitRepair[];
+  preselectedRepairId?: string | null;
   onAddPhoto: (photo: WorkPhoto) => void;
   onDeletePhoto: (photoId: string) => void;
   onOpenViewer: (photo: WorkPhoto) => void;
 }
 
 const CATEGORIES: PhotoCategory[] = [
-  'Before',
-  'After',
-  'Equipment Tag',
-  'Issue / Damage',
-  'Work Done',
-  'Parts / Slip',
-  'Other',
+  'Damage / Hole',
+  'Before Repair',
+  'Mud / Patch Progress',
+  'Texture Match',
+  'After / Finished',
+  'Paint Code / Can',
+];
+
+const PRESETS: string[] = [
+  'Pre-existing hole before patch',
+  'Water damaged ceiling cutout',
+  'Drywall backing & mesh tape',
+  'Easy Sand hot mud feathered',
+  'Texture matched to wall',
+  'Primed stain blocker',
+  'Painted 2 coats & blended',
+  'Paint can formula tag',
 ];
 
 export const PhotoSnapSection: React.FC<PhotoSnapSectionProps> = ({
   photos,
-  units,
+  repairs,
+  preselectedRepairId,
   onAddPhoto,
   onDeletePhoto,
   onOpenViewer,
@@ -32,10 +44,18 @@ export const PhotoSnapSection: React.FC<PhotoSnapSectionProps> = ({
   const galleryInputRef = useRef<HTMLInputElement>(null);
 
   const [pendingDataUrl, setPendingDataUrl] = useState<string | null>(null);
-  const [selectedCategory, setSelectedCategory] = useState<PhotoCategory>('Work Done');
-  const [selectedUnitId, setSelectedUnitId] = useState<string>('');
+  const [selectedCategory, setSelectedCategory] = useState<PhotoCategory>('Damage / Hole');
+  const [selectedRepairId, setSelectedRepairId] = useState<string>('');
   const [caption, setCaption] = useState<string>('');
   const [isProcessing, setIsProcessing] = useState(false);
+
+  useEffect(() => {
+    if (preselectedRepairId) {
+      setSelectedRepairId(preselectedRepairId);
+    } else if (repairs.length === 1 && !selectedRepairId) {
+      setSelectedRepairId(repairs[0].id);
+    }
+  }, [preselectedRepairId, repairs]);
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -46,16 +66,14 @@ export const PhotoSnapSection: React.FC<PhotoSnapSectionProps> = ({
       const compressedDataUrl = await compressImage(file, 1280, 0.78);
       setPendingDataUrl(compressedDataUrl);
 
-      // Default unit selection if only 1 unit exists
-      if (units.length === 1 && !selectedUnitId) {
-        setSelectedUnitId(units[0].id);
+      if (repairs.length > 0 && !selectedRepairId) {
+        setSelectedRepairId(repairs[0].id);
       }
     } catch (err) {
       console.error('Error handling photo capture', err);
       alert('Unable to process photo. Please try again.');
     } finally {
       setIsProcessing(false);
-      // Reset input value so same photo can be re-selected if needed
       e.target.value = '';
     }
   };
@@ -68,7 +86,7 @@ export const PhotoSnapSection: React.FC<PhotoSnapSectionProps> = ({
       dataUrl: pendingDataUrl,
       category: selectedCategory,
       caption: caption.trim(),
-      unitId: selectedUnitId || undefined,
+      repairId: selectedRepairId || undefined,
       timestamp: new Date().toISOString(),
     };
 
@@ -84,16 +102,17 @@ export const PhotoSnapSection: React.FC<PhotoSnapSectionProps> = ({
 
   const getBadgeStyle = (cat: PhotoCategory) => {
     switch (cat) {
-      case 'Before':
-        return 'bg-amber-500/15 text-amber-300 border-amber-500/30';
-      case 'After':
-        return 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30';
-      case 'Issue / Damage':
+      case 'Damage / Hole':
+      case 'Before Repair':
         return 'bg-rose-500/15 text-rose-300 border-rose-500/30';
-      case 'Equipment Tag':
+      case 'After / Finished':
+        return 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30';
+      case 'Mud / Patch Progress':
+        return 'bg-amber-500/15 text-amber-300 border-amber-500/30';
+      case 'Texture Match':
+        return 'bg-cyan-500/15 text-cyan-300 border-cyan-500/30';
+      case 'Paint Code / Can':
         return 'bg-sky-500/15 text-sky-300 border-sky-500/30';
-      case 'Work Done':
-        return 'bg-indigo-500/15 text-indigo-300 border-indigo-500/30';
       default:
         return 'bg-neutral-800 text-neutral-300 border-neutral-700';
     }
@@ -101,22 +120,21 @@ export const PhotoSnapSection: React.FC<PhotoSnapSectionProps> = ({
 
   return (
     <div className="bg-neutral-900 border border-neutral-800/90 rounded-2xl p-4 space-y-4">
-      {/* Section Header */}
+      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <div className="flex items-center gap-2">
-            <h3 className="text-sm font-bold text-neutral-100">Attached Photos</h3>
+            <h3 className="text-sm font-bold text-neutral-100">Before & After Photo Proof</h3>
             <span className="text-xs text-neutral-400 font-mono-numbers">
               {photos.length} photo{photos.length === 1 ? '' : 's'}
             </span>
           </div>
-          <p className="text-xs text-neutral-400">Capture serial plates, damage, before & after work evidence</p>
+          <p className="text-xs text-neutral-400">Snap wall holes, mud coats, texture & painted finish for your boss</p>
         </div>
       </div>
 
-      {/* Camera & Gallery Action Trigger Buttons */}
+      {/* Camera and Gallery Buttons */}
       <div className="grid grid-cols-2 gap-2.5">
-        {/* Hidden File Inputs */}
         <input
           type="file"
           ref={cameraInputRef}
@@ -133,7 +151,6 @@ export const PhotoSnapSection: React.FC<PhotoSnapSectionProps> = ({
           className="hidden"
         />
 
-        {/* Snap with Camera Button */}
         <button
           type="button"
           onClick={() => cameraInputRef.current?.click()}
@@ -144,7 +161,6 @@ export const PhotoSnapSection: React.FC<PhotoSnapSectionProps> = ({
           <span>Snap Photo</span>
         </button>
 
-        {/* Upload from Gallery Button */}
         <button
           type="button"
           onClick={() => galleryInputRef.current?.click()}
@@ -156,19 +172,19 @@ export const PhotoSnapSection: React.FC<PhotoSnapSectionProps> = ({
         </button>
       </div>
 
-      {/* Pending Photo Details Editor (Appears immediately after snapping) */}
+      {/* Pending Photo Editor */}
       {pendingDataUrl && (
         <div className="p-3.5 bg-neutral-950 border border-amber-500/40 rounded-xl space-y-3 animate-in fade-in duration-150">
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold text-amber-400 flex items-center gap-1.5">
               <Camera className="w-4 h-4" />
-              New Photo Details
+              Tag Photo Proof
             </span>
-            <span className="text-[11px] text-neutral-400">Add tag & note</span>
+            <span className="text-[11px] text-neutral-400">Required for boss report</span>
           </div>
 
           <div className="flex gap-3 items-start">
-            <div className="w-24 h-24 rounded-lg overflow-hidden bg-black shrink-0 border border-neutral-800 relative">
+            <div className="w-24 h-24 rounded-lg overflow-hidden bg-black shrink-0 border border-neutral-800">
               <img src={pendingDataUrl} alt="Preview" className="w-full h-full object-cover" />
             </div>
 
@@ -176,7 +192,7 @@ export const PhotoSnapSection: React.FC<PhotoSnapSectionProps> = ({
               {/* Category selector */}
               <div>
                 <label className="block text-[11px] font-semibold text-neutral-400 mb-1">
-                  Photo Tag / Category
+                  Photo Type
                 </label>
                 <div className="flex flex-wrap gap-1">
                   {CATEGORIES.map((cat) => (
@@ -196,21 +212,21 @@ export const PhotoSnapSection: React.FC<PhotoSnapSectionProps> = ({
                 </div>
               </div>
 
-              {/* Associate with Unit */}
-              {units.length > 0 && (
+              {/* Link to Unit Repair */}
+              {repairs.length > 0 && (
                 <div>
                   <label className="block text-[11px] font-semibold text-neutral-400 mb-1">
-                    Link to Unit
+                    Link to Unit / Room
                   </label>
                   <select
-                    value={selectedUnitId}
-                    onChange={(e) => setSelectedUnitId(e.target.value)}
+                    value={selectedRepairId}
+                    onChange={(e) => setSelectedRepairId(e.target.value)}
                     className="w-full bg-neutral-900 border border-neutral-800 rounded-lg px-2 py-1 text-xs text-neutral-200 focus:outline-none focus:border-amber-500"
                   >
-                    <option value="">-- General Log Photo --</option>
-                    {units.map((u) => (
-                      <option key={u.id} value={u.id}>
-                        {u.unitNumber} {u.equipmentType ? `(${u.equipmentType})` : ''}
+                    <option value="">-- General Shift Photo --</option>
+                    {repairs.map((r) => (
+                      <option key={r.id} value={r.id}>
+                        {r.unitNumber} ({r.roomArea} - {r.damageType})
                       </option>
                     ))}
                   </select>
@@ -219,23 +235,23 @@ export const PhotoSnapSection: React.FC<PhotoSnapSectionProps> = ({
             </div>
           </div>
 
-          {/* Caption text */}
+          {/* Caption */}
           <div>
             <label className="block text-[11px] font-semibold text-neutral-400 mb-1">
-              Caption / Observation
+              Note for Boss
             </label>
             <input
               type="text"
-              placeholder="e.g. Serial plate verified, burnt coil, before repair..."
+              placeholder="e.g. 6-inch hole before repair, texture matched..."
               value={caption}
               onChange={(e) => setCaption(e.target.value)}
               className="w-full bg-neutral-900 border border-neutral-800 rounded-lg px-2.5 py-1.5 text-xs text-neutral-100 placeholder-neutral-500 focus:outline-none focus:border-amber-500"
             />
           </div>
 
-          {/* Quick Preset Buttons for common captions */}
-          <div className="flex flex-wrap gap-1 text-[11px]">
-            {['Initial condition', 'Repaired & tested', 'Serial nameplate', 'Damage documented'].map((preset) => (
+          {/* Quick Presets */}
+          <div className="flex flex-wrap gap-1">
+            {PRESETS.map((preset) => (
               <button
                 key={preset}
                 type="button"
@@ -247,7 +263,7 @@ export const PhotoSnapSection: React.FC<PhotoSnapSectionProps> = ({
             ))}
           </div>
 
-          {/* Action buttons */}
+          {/* Actions */}
           <div className="flex items-center justify-end gap-2 pt-1 border-t border-neutral-800/80">
             <button
               type="button"
@@ -262,30 +278,29 @@ export const PhotoSnapSection: React.FC<PhotoSnapSectionProps> = ({
               className="px-4 py-1.5 bg-amber-500 text-neutral-950 font-bold text-xs rounded-lg hover:bg-amber-400 shadow transition-colors flex items-center gap-1.5"
             >
               <Check className="w-3.5 h-3.5" />
-              Attach to Log
+              Attach Photo Proof
             </button>
           </div>
         </div>
       )}
 
-      {/* Grid of Attached Photos */}
+      {/* Photos Grid */}
       {photos.length > 0 ? (
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
           {photos.map((photo) => {
-            const linkedUnit = units.find((u) => u.id === photo.unitId);
+            const linkedRepair = repairs.find((r) => r.id === photo.repairId);
             return (
               <div
                 key={photo.id}
                 className="group relative bg-neutral-950 border border-neutral-800/80 rounded-xl overflow-hidden hover:border-neutral-700 transition-all flex flex-col"
               >
-                {/* Photo Thumbnail */}
                 <div
                   className="aspect-4/3 w-full bg-neutral-900 relative cursor-pointer overflow-hidden"
                   onClick={() => onOpenViewer(photo)}
                 >
                   <img
                     src={photo.dataUrl}
-                    alt={photo.caption || 'Work photo'}
+                    alt={photo.caption || 'Paint drywall photo'}
                     className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
                   />
                   <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center opacity-0 group-hover:opacity-100">
@@ -294,7 +309,6 @@ export const PhotoSnapSection: React.FC<PhotoSnapSectionProps> = ({
                     </span>
                   </div>
 
-                  {/* Badge */}
                   <span
                     className={`absolute top-1.5 left-1.5 text-[9px] font-bold px-1.5 py-0.5 rounded border backdrop-blur-xs ${getBadgeStyle(
                       photo.category
@@ -303,7 +317,6 @@ export const PhotoSnapSection: React.FC<PhotoSnapSectionProps> = ({
                     {photo.category}
                   </span>
 
-                  {/* Delete button */}
                   <button
                     type="button"
                     onClick={(e) => {
@@ -318,14 +331,13 @@ export const PhotoSnapSection: React.FC<PhotoSnapSectionProps> = ({
                   </button>
                 </div>
 
-                {/* Details under photo */}
                 <div className="p-2 space-y-0.5 flex-1 flex flex-col justify-between">
                   <p className="text-[11px] text-neutral-200 font-medium line-clamp-1">
-                    {photo.caption || 'Photo'}
+                    {photo.caption || 'Photo proof'}
                   </p>
-                  {linkedUnit && (
+                  {linkedRepair && (
                     <p className="text-[10px] text-amber-400/90 truncate">
-                      {linkedUnit.unitNumber}
+                      {linkedRepair.unitNumber} ({linkedRepair.damageType})
                     </p>
                   )}
                   <p className="text-[9px] text-neutral-500 font-mono-numbers">
@@ -340,9 +352,9 @@ export const PhotoSnapSection: React.FC<PhotoSnapSectionProps> = ({
         !pendingDataUrl && (
           <div className="text-center py-6 px-4 border border-dashed border-neutral-800 rounded-xl bg-neutral-950/40 space-y-1.5">
             <Camera className="w-6 h-6 mx-auto text-neutral-600" />
-            <p className="text-xs text-neutral-400 font-medium">No photos attached yet today</p>
+            <p className="text-xs text-neutral-400 font-medium">No photo proof attached today</p>
             <p className="text-[11px] text-neutral-500">
-              Tap "Snap Photo" to document serial tags, equipment before/after, or repair steps
+              Snap the hole before fixing, mud coats, texture, and after painting
             </p>
           </div>
         )

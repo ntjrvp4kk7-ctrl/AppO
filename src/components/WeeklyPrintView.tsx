@@ -1,11 +1,10 @@
 import React from 'react';
-import { DailyWorkLog, WorkerProfile, WorkPhoto, UnitDetail } from '../types/worklog';
-import { formatDisplayDate } from '../utils/dateUtils';
+import { DailyWorkLog, UserAccount, WorkPhoto, UnitRepair } from '../types/worklog';
 
 interface WeeklyPrintViewProps {
   dates: string[];
   logs: DailyWorkLog[];
-  profile: WorkerProfile;
+  profile: UserAccount;
   supervisorSignature?: {
     signedBy: string;
     signedAt: string;
@@ -21,8 +20,8 @@ export const WeeklyPrintView: React.FC<WeeklyPrintViewProps> = ({
   let totalHours = 0;
   let totalRegular = 0;
   let totalOvertime = 0;
-  const allUnits: { date: string; unit: UnitDetail }[] = [];
-  const allPhotos: { date: string; photo: WorkPhoto; unitName?: string }[] = [];
+  const allRepairs: { date: string; repair: UnitRepair }[] = [];
+  const allPhotos: { date: string; photo: WorkPhoto; repair?: UnitRepair }[] = [];
 
   dates.forEach((dateStr) => {
     const log = logs.find((l) => l.date === dateStr);
@@ -31,13 +30,13 @@ export const WeeklyPrintView: React.FC<WeeklyPrintViewProps> = ({
       totalRegular += Math.min(8, log.time.totalHours);
       totalOvertime += log.time.overtimeHours;
 
-      log.units.forEach((u) => {
-        allUnits.push({ date: dateStr, unit: u });
+      log.repairs.forEach((r) => {
+        allRepairs.push({ date: dateStr, repair: r });
       });
 
       log.photos.forEach((p) => {
-        const u = log.units.find((item) => item.id === p.unitId);
-        allPhotos.push({ date: dateStr, photo: p, unitName: u?.unitNumber });
+        const r = log.repairs.find((item) => item.id === p.repairId);
+        allPhotos.push({ date: dateStr, photo: p, repair: r });
       });
     }
   });
@@ -49,10 +48,10 @@ export const WeeklyPrintView: React.FC<WeeklyPrintViewProps> = ({
         <div className="flex justify-between items-start">
           <div>
             <h1 className="text-2xl font-black uppercase tracking-tight text-slate-900">
-              Weekly Field Work & Unit Report
+              Paint & Drywall Weekly Work Report
             </h1>
             <p className="text-xs font-semibold text-slate-600 uppercase tracking-widest mt-0.5">
-              {profile.companyName} • {profile.companyPhone}
+              {profile.companyName}
             </p>
           </div>
           <div className="text-right">
@@ -66,14 +65,14 @@ export const WeeklyPrintView: React.FC<WeeklyPrintViewProps> = ({
         {/* Worker & Supervisor Info Grid */}
         <div className="grid grid-cols-2 gap-4 mt-4 pt-3 border-t border-slate-200 text-xs">
           <div>
-            <span className="text-slate-500 font-semibold block">TECHNICIAN</span>
+            <span className="text-slate-500 font-semibold block">PAINTER / TECHNICIAN</span>
             <span className="font-bold text-slate-900 text-sm">{profile.workerName}</span>
-            <span className="text-slate-600 block">ID: {profile.employeeId} • {profile.workerTitle}</span>
+            <span className="text-slate-600 block">{profile.email}</span>
           </div>
           <div className="text-right">
             <span className="text-slate-500 font-semibold block">SUPERVISOR</span>
             <span className="font-bold text-slate-900 text-sm">{profile.bossName}</span>
-            <span className="text-slate-600 block">{profile.bossEmail}</span>
+            <span className="text-slate-600 block">{profile.bossEmail || 'No email set'}</span>
           </div>
         </div>
       </div>
@@ -81,7 +80,7 @@ export const WeeklyPrintView: React.FC<WeeklyPrintViewProps> = ({
       {/* Timesheet Summary Table */}
       <div className="mb-6">
         <h2 className="text-xs font-bold text-slate-900 uppercase tracking-wider mb-2">
-          1. Weekly Timesheet & Labor Hours
+          1. Weekly Labor Hours & Activity
         </h2>
         <table className="w-full text-xs border border-slate-300 border-collapse">
           <thead>
@@ -90,7 +89,7 @@ export const WeeklyPrintView: React.FC<WeeklyPrintViewProps> = ({
               <th className="py-2 px-2 text-center font-bold">Start</th>
               <th className="py-2 px-2 text-center font-bold">End</th>
               <th className="py-2 px-2 text-center font-bold">Break</th>
-              <th className="py-2 px-2 text-center font-bold">Category</th>
+              <th className="py-2 px-2 text-left font-bold">Primary Activity</th>
               <th className="py-2 px-2 text-right font-bold">Reg Hrs</th>
               <th className="py-2 px-2 text-right font-bold">OT Hrs</th>
               <th className="py-2 px-2.5 text-right font-bold">Total</th>
@@ -108,7 +107,7 @@ export const WeeklyPrintView: React.FC<WeeklyPrintViewProps> = ({
                 return (
                   <tr key={dateStr} className="border-b border-slate-200 text-slate-400">
                     <td className="py-1.5 px-2.5 font-medium">{day}</td>
-                    <td colSpan={6} className="py-1.5 px-2 text-center italic">Off / No shift</td>
+                    <td colSpan={6} className="py-1.5 px-2 text-center italic">Off duty</td>
                     <td className="py-1.5 px-2.5 text-right font-mono">0.0</td>
                   </tr>
                 );
@@ -120,7 +119,7 @@ export const WeeklyPrintView: React.FC<WeeklyPrintViewProps> = ({
                   <td className="py-1.5 px-2 text-center font-mono">{log.time.startTime}</td>
                   <td className="py-1.5 px-2 text-center font-mono">{log.time.endTime}</td>
                   <td className="py-1.5 px-2 text-center text-slate-600">{log.time.breakMinutes}m</td>
-                  <td className="py-1.5 px-2 text-center text-slate-700">{log.time.laborCategory}</td>
+                  <td className="py-1.5 px-2 text-left text-slate-800">{log.time.laborCategory}</td>
                   <td className="py-1.5 px-2 text-right font-mono">{reg.toFixed(1)}</td>
                   <td className="py-1.5 px-2 text-right font-mono font-semibold text-amber-800">
                     {log.time.overtimeHours > 0 ? log.time.overtimeHours.toFixed(1) : '-'}
@@ -143,53 +142,62 @@ export const WeeklyPrintView: React.FC<WeeklyPrintViewProps> = ({
         </table>
       </div>
 
-      {/* Unit Details Breakdown */}
+      {/* Paint & Drywall Unit Breakdown */}
       <div className="mb-6 page-break-inside-avoid">
         <h2 className="text-xs font-bold text-slate-900 uppercase tracking-wider mb-2">
-          2. Units & Equipment Serviced Breakdown ({allUnits.length} Units)
+          2. Paint & Drywall Repairs by Unit ({allRepairs.length} Total Units)
         </h2>
-        {allUnits.length > 0 ? (
+        {allRepairs.length > 0 ? (
           <div className="space-y-3">
-            {allUnits.map((item, idx) => (
+            {allRepairs.map((item, idx) => (
               <div key={idx} className="border border-slate-300 rounded p-3 text-xs bg-slate-50/50">
                 <div className="flex justify-between items-start border-b border-slate-200 pb-1 mb-1.5">
                   <div className="font-bold text-slate-900 text-sm">
-                    {item.unit.unitNumber}{' '}
-                    <span className="text-slate-500 font-normal text-xs">
-                      {item.unit.equipmentType ? `(${item.unit.equipmentType})` : ''}
-                    </span>
+                    {item.repair.unitNumber} • {item.repair.roomArea}
                   </div>
                   <div className="text-right">
-                    <span className="font-semibold text-slate-700">Status: {item.unit.status}</span>
+                    <span className="font-bold text-emerald-800">{item.repair.repairStage}</span>
                     <span className="text-slate-500 text-[11px] block">{item.date}</span>
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-2 text-[11px] text-slate-600 mb-1.5">
-                  <div>Location: <span className="font-medium text-slate-800">{item.unit.location || 'N/A'}</span></div>
-                  <div>Ticket / Work Order: <span className="font-medium text-slate-800">{item.unit.workOrderNumber || 'N/A'}</span></div>
+                <div className="grid grid-cols-2 gap-2 text-[11px] text-slate-700 mb-1.5">
+                  <div>
+                    <span className="font-semibold text-slate-600">Damage Fixed:</span>{' '}
+                    {item.repair.damageType} {item.repair.damageSize ? `(${item.repair.damageSize})` : ''}
+                  </div>
+                  <div>
+                    <span className="font-semibold text-slate-600">Paint Spec:</span>{' '}
+                    {item.repair.paintColor} [{item.repair.paintSheen}]
+                  </div>
                 </div>
 
-                <div className="mb-1 text-slate-800">
-                  <span className="font-semibold text-slate-700">Work Performed: </span>
-                  {item.unit.workPerformed || 'Standard service completed.'}
+                <div className="grid grid-cols-2 gap-2 text-[11px] text-slate-700 mb-1.5">
+                  <div>
+                    <span className="font-semibold text-slate-600">Texture Match:</span>{' '}
+                    {item.repair.textureType}
+                  </div>
+                  <div>
+                    <span className="font-semibold text-slate-600">Mud / Primer:</span>{' '}
+                    {item.repair.compoundUsed || 'N/A'} {item.repair.primerUsed ? `• ${item.repair.primerUsed}` : ''}
+                  </div>
                 </div>
 
-                {item.unit.partsUsed.length > 0 && (
-                  <div className="text-[11px] text-slate-700 bg-white p-1.5 rounded border border-slate-200 mt-1">
-                    <span className="font-semibold">Parts & Materials Used: </span>
-                    {item.unit.partsUsed.map((p) => `${p.quantity}x ${p.description} (${p.partNumber})`).join(' • ')}
+                {item.repair.workDescription && (
+                  <div className="text-slate-800 mt-1 pt-1 border-t border-slate-200">
+                    <span className="font-semibold text-slate-600">Work Performed:</span>{' '}
+                    {item.repair.workDescription}
                   </div>
                 )}
               </div>
             ))}
           </div>
         ) : (
-          <p className="text-xs text-slate-500 italic">No equipment units recorded this week.</p>
+          <p className="text-xs text-slate-500 italic">No paint or drywall repairs recorded this week.</p>
         )}
       </div>
 
-      {/* Photo Documentation Grid */}
+      {/* Photographic Proof (Damage / Before and After) */}
       {allPhotos.length > 0 && (
         <div className="mb-6 page-break-inside-avoid">
           <h2 className="text-xs font-bold text-slate-900 uppercase tracking-wider mb-2">
@@ -203,10 +211,16 @@ export const WeeklyPrintView: React.FC<WeeklyPrintViewProps> = ({
                 </div>
                 <div className="p-2">
                   <div className="flex justify-between font-bold text-slate-800 text-[10px]">
-                    <span>[{item.photo.category}]</span>
+                    <span className={item.photo.category === 'After / Finished' ? 'text-emerald-700' : 'text-rose-700'}>
+                      [{item.photo.category}]
+                    </span>
                     <span>{item.date}</span>
                   </div>
-                  {item.unitName && <p className="text-[10px] text-slate-600 truncate">Unit: {item.unitName}</p>}
+                  {item.repair && (
+                    <p className="text-[10px] text-slate-600 truncate font-semibold">
+                      {item.repair.unitNumber} ({item.repair.roomArea})
+                    </p>
+                  )}
                   <p className="text-slate-700 text-[10px] mt-0.5 line-clamp-2">{item.photo.caption || 'Photo log'}</p>
                 </div>
               </div>
@@ -215,15 +229,15 @@ export const WeeklyPrintView: React.FC<WeeklyPrintViewProps> = ({
         </div>
       )}
 
-      {/* Sign-off Section */}
+      {/* Boss Approval Signature Section */}
       <div className="border-t-2 border-slate-900 pt-4 mt-8 page-break-inside-avoid">
         <div className="grid grid-cols-2 gap-8 text-xs">
           <div>
             <div className="border-b border-slate-400 pb-8 mb-1">
               <span className="italic text-slate-600 font-mono text-sm">{profile.workerName}</span>
             </div>
-            <span className="font-bold text-slate-800 block">TECHNICIAN SIGNATURE</span>
-            <span className="text-[11px] text-slate-500">I certify that the above hours and units are accurate.</span>
+            <span className="font-bold text-slate-800 block">PAINTER SIGNATURE</span>
+            <span className="text-[11px] text-slate-500">I verify that all drywall repairs, texture, and paint are complete.</span>
           </div>
 
           <div>
@@ -239,7 +253,7 @@ export const WeeklyPrintView: React.FC<WeeklyPrintViewProps> = ({
             </div>
             <span className="font-bold text-slate-800 block">SUPERVISOR APPROVAL</span>
             <span className="text-[11px] text-slate-500">
-              {supervisorSignature ? 'Approved and signed off' : 'Pending weekly supervisor review'}
+              {supervisorSignature ? 'Signed off & approved' : 'Pending weekly review'}
             </span>
           </div>
         </div>

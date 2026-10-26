@@ -1,45 +1,49 @@
-import { DailyWorkLog, WorkerProfile, WorkPhoto, UnitDetail } from '../types/worklog';
+import { DailyWorkLog, UserAccount, WorkPhoto, UnitRepair } from '../types/worklog';
 import { getTodayISODate, calculateHours, getWeekRange, formatDisplayDate } from './dateUtils';
-import { createSvgPhotoDataUrl } from './photoUtils';
+import { createPaintDrywallSvg } from './photoUtils';
 
-const STORAGE_KEY_LOGS = 'fieldlog_daily_logs_v1';
-const STORAGE_KEY_PROFILE = 'fieldlog_worker_profile_v1';
+const STORAGE_KEY_LOGS = 'fieldlog_paint_drywall_logs_v2';
+const STORAGE_KEY_AUTH = 'fieldlog_paint_drywall_auth_v2';
 
-export const DEFAULT_PROFILE: WorkerProfile = {
-  workerName: 'Marcus Vance',
-  workerTitle: 'Lead Field Maintenance Tech',
-  employeeId: 'TECH-4091',
-  companyName: 'Apex Mechanical & Facility Services',
-  companyPhone: '(555) 382-9901',
-  bossName: 'Dave Henderson',
-  bossEmail: 'd.henderson@apexfacilities.com',
-  hourlyRate: 38.5,
-  dailyOtThreshold: 8,
+export const DEFAULT_USER: UserAccount = {
+  id: 'user-default',
+  email: 'technician@paintpros.com',
+  workerName: 'Carlos Rivera',
+  bossName: 'Greg Mitchell',
+  bossEmail: 'greg.m@primepropertiesmgmt.com',
+  companyName: 'Apex Paint & Drywall Services',
 };
 
-export function getStoredProfile(): WorkerProfile {
+export function getStoredAuth(): { token: string | null; user: UserAccount } {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY_PROFILE);
+    const raw = localStorage.getItem(STORAGE_KEY_AUTH);
     if (raw) {
-      return { ...DEFAULT_PROFILE, ...JSON.parse(raw) };
+      const parsed = JSON.parse(raw);
+      if (parsed.user) {
+        return { token: parsed.token || null, user: parsed.user };
+      }
     }
   } catch (e) {
-    console.error('Failed reading worker profile', e);
+    console.error('Failed reading auth state', e);
   }
-  return DEFAULT_PROFILE;
+  return { token: null, user: DEFAULT_USER };
 }
 
-export function saveStoredProfile(profile: WorkerProfile): void {
+export function saveStoredAuth(token: string | null, user: UserAccount): void {
   try {
-    localStorage.setItem(STORAGE_KEY_PROFILE, JSON.stringify(profile));
+    localStorage.setItem(STORAGE_KEY_AUTH, JSON.stringify({ token, user }));
   } catch (e) {
-    console.error('Failed saving worker profile', e);
+    console.error('Failed saving auth state', e);
   }
 }
 
-export function generateSeedLogs(): DailyWorkLog[] {
+export function clearStoredAuth(): void {
+  localStorage.removeItem(STORAGE_KEY_AUTH);
+}
+
+export function generateSeedPaintDrywallLogs(): DailyWorkLog[] {
   const currentWeek = getWeekRange(new Date());
-  const dates = currentWeek.dates; // Monday to Sunday of current week
+  const dates = currentWeek.dates; // Monday to Sunday
 
   const mon = dates[0];
   const tue = dates[1];
@@ -54,59 +58,73 @@ export function generateSeedLogs(): DailyWorkLog[] {
         startTime: '07:30',
         endTime: '16:00',
         breakMinutes: 30,
-        laborCategory: 'Scheduled Maintenance',
+        laborCategory: 'Drywall Hanging & Patching',
         overtimeHours: 0,
         totalHours: 8.0,
       },
-      safetyCheckCompleted: true,
-      weatherConditions: 'Clear, 68°F',
       status: 'Submitted',
-      generalNotes: 'Routine quarterly maintenance rounds completed on South Rooftop chillers. All pressures within nominal threshold.',
-      units: [
+      repairs: [
         {
-          id: 'u-101',
-          unitNumber: 'Roof Unit #4 (Carrier 15-Ton)',
-          equipmentType: 'Packaged HVAC Chiller',
-          location: 'Building B - Rooftop South Deck',
-          workOrderNumber: 'WO-99120',
-          status: 'Tested & Passed',
-          workPerformed: 'Replaced air filters (MERV 13), lubricated blower motor bearings, flushed condensate P-trap line, and inspected electrical contactor.',
-          partsUsed: [
-            { id: 'p-1', partNumber: 'FLTR-20x25x2', description: 'Pleated MERV 13 Filter', quantity: 4 },
-            { id: 'p-2', partNumber: 'LUBE-SYN-4', description: 'Synthetic Bearing Grease Tube', quantity: 1 },
-          ],
-          technicianNotes: 'Minor surface rust noticed on drain pan; treated with zinc cold galvanize.',
+          id: 'rep-101',
+          unitNumber: 'Unit 304',
+          roomArea: 'Living Room behind entry door',
+          damageType: 'Doorknob / Fist Hole',
+          damageSize: '6-inch diameter doorknob hole through 1/2in sheetrock',
+          repairStage: 'Painted & Completed',
+          paintColor: 'SW 7029 Agreeable Gray',
+          paintSheen: 'Eggshell',
+          primerUsed: 'Kilz 2 Latex Primer',
+          compoundUsed: 'Easy Sand 20 + Plus 3 Finish',
+          textureType: 'Orange Peel (Medium)',
+          workDescription: 'Squared off hole, installed wood backing clip, fitted 1/2" drywall plug. Mesh taped, 2 coats hot mud, spray can orange peel texture matched surrounding wall. Primed and applied 2 coats SW Agreeable Gray.',
         },
         {
-          id: 'u-102',
-          unitNumber: 'Suite 204 Fan Coil',
-          equipmentType: 'Hydronic Fan Coil Unit',
-          location: '2nd Floor North - Suite 204 Closet',
-          workOrderNumber: 'WO-99124',
-          status: 'Completed',
-          workPerformed: 'Replaced faulty actuator valve (honeywell 24v) causing uneven temperature complaints.',
-          partsUsed: [
-            { id: 'p-3', partNumber: 'VLV-HW-24V', description: 'Honeywell Zone Actuator', quantity: 1 },
-          ],
-          technicianNotes: 'Thermostat calibrated and verified 71°F setpoint reached in 20 minutes.',
+          id: 'rep-102',
+          unitNumber: 'Unit 304',
+          roomArea: 'Master Bedroom Closet',
+          damageType: 'Drywall Stress Crack',
+          damageSize: '3-foot vertical settling crack above closet header',
+          repairStage: 'Painted & Completed',
+          paintColor: 'SW 7005 Pure White',
+          paintSheen: 'Flat / Matte',
+          primerUsed: 'PVA Drywall Primer',
+          compoundUsed: 'Plus 3 Lightweight',
+          textureType: 'Orange Peel (Light)',
+          workDescription: 'V-grooved crack, screwed loose drywall edges to stud, fibafuse taped, skimmed 2 tight coats, feathered and painted.',
         },
       ],
       photos: [
         {
           id: 'ph-1',
-          dataUrl: createSvgPhotoDataUrl('Roof Unit #4 - Blower Assembly', 'New MERV 13 filters installed & bearings lubed', '#0284c7'),
-          category: 'Work Done',
-          caption: 'New filters seated properly and blower motor cleaned.',
-          unitId: 'u-101',
-          timestamp: `${mon}T10:45:00.000Z`,
+          dataUrl: createPaintDrywallSvg('damage', 'Unit 304 Living Room - Doorknob Hole', 'Before repair: 6" hole through sheetrock'),
+          category: 'Damage / Hole',
+          caption: 'Pre-existing doorknob hole in living room wall before patch.',
+          repairId: 'rep-101',
+          timestamp: `${mon}T08:15:00.000Z`,
         },
         {
           id: 'ph-2',
-          dataUrl: createSvgPhotoDataUrl('Carrier Nameplate & Serial', 'Model 50TCQ014 | S/N 4918X02914', '#10b981'),
-          category: 'Equipment Tag',
-          caption: 'Equipment serial tag verified for quarterly warranty tracking.',
-          unitId: 'u-101',
-          timestamp: `${mon}T11:15:00.000Z`,
+          dataUrl: createPaintDrywallSvg('patch', 'Unit 304 Living Room - Taped & Mudded', 'Backing installed, mesh taped & hot mud coat'),
+          category: 'Mud / Patch Progress',
+          caption: 'Backing block installed, drywall fitted, first coat Easy Sand 20 feathered out.',
+          repairId: 'rep-101',
+          timestamp: `${mon}T10:45:00.000Z`,
+        },
+        {
+          id: 'ph-3',
+          dataUrl: createPaintDrywallSvg('after', 'Unit 304 Living Room - Painted & Finished', 'Texture blended, 2 coats SW Agreeable Gray Eggshell'),
+          category: 'After / Finished',
+          caption: 'Seamless finish. Texture matched perfectly and paint blended with no flashing.',
+          repairId: 'rep-101',
+          timestamp: `${mon}T14:30:00.000Z`,
+        },
+        {
+          id: 'ph-4',
+          dataUrl: createPaintDrywallSvg('paintcan', 'Unit 304 Paint Code Can', 'SW 7029 Agreeable Gray - Eggshell Interior'),
+          category: 'Paint Code / Can',
+          caption: 'Paint formula tag verified on site for color continuity.',
+          repairId: 'rep-101',
+          timestamp: `${mon}T15:00:00.000Z`,
         },
       ],
     },
@@ -114,49 +132,46 @@ export function generateSeedLogs(): DailyWorkLog[] {
       id: `log-${tue}`,
       date: tue,
       time: {
-        startTime: '07:00',
+        startTime: '07:30',
         endTime: '16:30',
         breakMinutes: 30,
-        laborCategory: 'Emergency Repair',
-        overtimeHours: 1.0,
-        totalHours: 9.0,
+        laborCategory: 'Taping & Mudding',
+        overtimeHours: 0.5,
+        totalHours: 8.5,
       },
-      safetyCheckCompleted: true,
-      weatherConditions: 'Overcast, light mist',
       status: 'Submitted',
-      generalNotes: 'Called out for emergency no-cool complaint in Medical Lab 102. Diagnosed burnt contactor and grounded dual-run capacitor.',
-      units: [
+      repairs: [
         {
-          id: 'u-201',
-          unitNumber: 'Unit RTU-2 (Medical Cleanroom)',
-          equipmentType: 'Trane High Efficiency RTU',
-          location: 'East Wing Lab Exterior Pad',
-          workOrderNumber: 'WO-99158',
-          status: 'Tested & Passed',
-          workPerformed: 'Disconnected power, discharged capacitor safely, replaced 45/5 MFD capacitor and 2-pole 30A contactor. Meggered compressor windings (normal resistance).',
-          partsUsed: [
-            { id: 'p-4', partNumber: 'CAP-45-5-440', description: 'Dual Round Run Capacitor', quantity: 1 },
-            { id: 'p-5', partNumber: 'CON-2P-30A', description: '2-Pole 30 Amp Contactor', quantity: 1 },
-          ],
-          technicianNotes: 'Amp draw on compressor: 14.8A (RLA 18.2A). System running cold, delta T is 19.5°F.',
+          id: 'rep-201',
+          unitNumber: 'Unit 212',
+          roomArea: 'Master Bathroom Ceiling',
+          damageType: 'Water Damage / Ceiling Leak',
+          damageSize: '2x3 ft soggy sheetrock cutout from upstairs shower leak',
+          repairStage: 'Painted & Completed',
+          paintColor: 'Ceiling Bright White',
+          paintSheen: 'Flat / Matte',
+          primerUsed: 'Kilz Original Oil-Based Stain Blocker',
+          compoundUsed: 'Easy Sand 45 + USG Sheetrock Joint Compound',
+          textureType: 'Knockdown',
+          workDescription: 'Removed moldy/wet drywall, verified leak above was repaired. Hung new 1/2" mold-tough sheetrock, taped, applied 2 coats joint compound. Blended knockdown texture with sponge/trowel, coated with oil stain blocker, rolled 2 coats ceiling flat.',
         },
       ],
       photos: [
         {
-          id: 'ph-3',
-          dataUrl: createSvgPhotoDataUrl('Burnt Contactor Pitted Contacts', 'Pitted points caused intermittent high amp surge', '#ef4444'),
-          category: 'Issue / Damage',
-          caption: 'Burnt contactor found during electrical diagnostic check.',
-          unitId: 'u-201',
-          timestamp: `${tue}T09:20:00.000Z`,
+          id: 'ph-5',
+          dataUrl: createPaintDrywallSvg('damage', 'Unit 212 Ceiling - Water Damage Cutout', 'Water stained drywall cut out to joists'),
+          category: 'Damage / Hole',
+          caption: 'Damage photo: ceiling cutout after upstairs tub leak resolved.',
+          repairId: 'rep-201',
+          timestamp: `${tue}T08:30:00.000Z`,
         },
         {
-          id: 'ph-4',
-          dataUrl: createSvgPhotoDataUrl('New Contactor & Capacitor Installed', 'Wired cleanly, zip tied, amp draw tested', '#10b981'),
-          category: 'After',
-          caption: 'Replacement contactor & capacitor installed. Tested within spec.',
-          unitId: 'u-201',
-          timestamp: `${tue}T11:40:00.000Z`,
+          id: 'ph-6',
+          dataUrl: createPaintDrywallSvg('after', 'Unit 212 Ceiling - Textured & Painted', 'Oil primed stain blocker + 2 coats ceiling flat'),
+          category: 'After / Finished',
+          caption: 'Finished ceiling repair. Knockdown texture matched and stain 100% sealed.',
+          repairId: 'rep-201',
+          timestamp: `${tue}T15:45:00.000Z`,
         },
       ],
     },
@@ -167,48 +182,43 @@ export function generateSeedLogs(): DailyWorkLog[] {
         startTime: '07:30',
         endTime: '16:00',
         breakMinutes: 30,
-        laborCategory: 'Regular Service',
+        laborCategory: 'Texture Spray & Blend',
         overtimeHours: 0,
         totalHours: 8.0,
       },
-      safetyCheckCompleted: true,
-      weatherConditions: 'Sunny, 72°F',
       status: 'Submitted',
-      generalNotes: 'Multi-unit tenant turnover inspection at Grandview Commercial complex.',
-      units: [
+      repairs: [
         {
-          id: 'u-301',
-          unitNumber: 'Unit #310 - Server Closet Split',
-          equipmentType: 'Mitsubishi Mini-Split 18k BTU',
-          location: 'Building C - Server Room 310',
-          workOrderNumber: 'WO-99182',
-          status: 'Completed',
-          workPerformed: 'Deep chemical coil cleaning on indoor evaporator, cleared drain line with nitrogen blast, checked refrigerant subcooling.',
-          partsUsed: [
-            { id: 'p-6', partNumber: 'CHEM-COIL-FOAM', description: 'Nu-Calgon Evap Foam Can', quantity: 1 },
-          ],
-          technicianNotes: 'Server room temp stabilized at 66°F.',
-        },
-        {
-          id: 'u-302',
-          unitNumber: 'Unit #312 - Office VAV Box',
-          equipmentType: 'Titus Variable Air Volume Box',
-          location: 'Ceiling Plenum above Office 312',
-          workOrderNumber: 'WO-99185',
-          status: 'Parts Needed',
-          workPerformed: 'Damper motor shaft binding. Tried recalibrating 0-10V signal from BMS, motor gears stripped.',
-          partsUsed: [],
-          technicianNotes: 'Need Belimo LMB24-SR actuator. Placed damper at 50% fixed bypass temporarily.',
+          id: 'rep-301',
+          unitNumber: 'Unit 108',
+          roomArea: 'Hallway outside kitchen',
+          damageType: 'Corner Bead Dent / Pop',
+          damageSize: '8-foot metal corner bead dented and popped loose',
+          repairStage: 'Painted & Completed',
+          paintColor: 'Behr Swiss Coffee (12B)',
+          paintSheen: 'Eggshell',
+          primerUsed: 'Zinsser 1-2-3 Bullseye',
+          compoundUsed: 'Durabond 90 + Lightweight finish',
+          textureType: 'Orange Peel (Medium)',
+          workDescription: 'Removed crushed metal corner bead, installed new paper-faced vinyl corner bead with spray adhesive and staples. Applied 3 mud passes, sanded flush, matched orange peel spray, primed and painted.',
         },
       ],
       photos: [
         {
-          id: 'ph-5',
-          dataUrl: createSvgPhotoDataUrl('Evaporator Coil Deep Cleaning', 'Chemical foam applied & rinsed clean', '#0284c7'),
-          category: 'Work Done',
-          caption: 'Evaporator coil deep foam cleaning in server room split unit.',
-          unitId: 'u-301',
-          timestamp: `${wed}T13:10:00.000Z`,
+          id: 'ph-7',
+          dataUrl: createPaintDrywallSvg('damage', 'Unit 108 Hallway - Dented Corner Bead', 'Cracked mud and dented metal corner bead from moving furniture'),
+          category: 'Damage / Hole',
+          caption: 'Damage photo: corner bead ruined by tenant furniture move.',
+          repairId: 'rep-301',
+          timestamp: `${wed}T08:00:00.000Z`,
+        },
+        {
+          id: 'ph-8',
+          dataUrl: createPaintDrywallSvg('after', 'Unit 108 Hallway - Straight Sharp Corner', 'New bead set, orange peel texture & painted'),
+          category: 'After / Finished',
+          caption: 'After: Crisp 90-degree corner, orange peel matched, no lines visible.',
+          repairId: 'rep-301',
+          timestamp: `${wed}T14:15:00.000Z`,
         },
       ],
     },
@@ -219,35 +229,43 @@ export function generateSeedLogs(): DailyWorkLog[] {
         startTime: '07:30',
         endTime: '16:00',
         breakMinutes: 30,
-        laborCategory: 'Inspection',
+        laborCategory: 'Finish Painting',
         overtimeHours: 0,
         totalHours: 8.0,
       },
-      safetyCheckCompleted: true,
-      weatherConditions: 'Partly cloudy, 65°F',
       status: 'Submitted',
-      generalNotes: 'Annual backflow and mechanical safety inspections with city inspector.',
-      units: [
+      repairs: [
         {
-          id: 'u-401',
-          unitNumber: 'Boiler #1 (Lochinvar 500k BTU)',
-          equipmentType: 'Hydronic Heating Boiler',
-          location: 'Central Basement Mechanical Room',
-          workOrderNumber: 'WO-99201',
-          status: 'Tested & Passed',
-          workPerformed: 'Tested low-water cutoff safety switch, verified gas train pressure, safety relief valve pop test passed.',
-          partsUsed: [],
-          technicianNotes: 'Inspector signed annual certification tag #B-2026-99.',
+          id: 'rep-401',
+          unitNumber: 'Unit 415',
+          roomArea: 'Dining Room Accent & Kitchen Wall',
+          damageType: 'Nail Pops / Anchor Holes',
+          damageSize: '18 heavy wall anchor blowouts & picture nail tears',
+          repairStage: 'Painted & Completed',
+          paintColor: 'SW 7015 Repose Gray',
+          paintSheen: 'Satin',
+          primerUsed: 'Kilz Hide-All Primer',
+          compoundUsed: 'Plus 3 Joint Compound',
+          textureType: 'Orange Peel (Light)',
+          workDescription: 'Pushed back paper tears, countersunk loose fasteners, filled all anchor blowouts, spot textured, primed patches and rolled full wall to corner.',
         },
       ],
       photos: [
         {
-          id: 'ph-6',
-          dataUrl: createSvgPhotoDataUrl('Passed Inspection Tag 2026', 'Signed by City Mech Inspector', '#10b981'),
-          category: 'Equipment Tag',
-          caption: '2026 City boiler inspection certificate affixed to front panel.',
-          unitId: 'u-401',
-          timestamp: `${thu}T14:30:00.000Z`,
+          id: 'ph-9',
+          dataUrl: createPaintDrywallSvg('damage', 'Unit 415 Dining - Anchor Tears', 'Blowouts from heavy TV mount anchors and wall hangings'),
+          category: 'Damage / Hole',
+          caption: 'Wall damage from anchor removal prior to repair.',
+          repairId: 'rep-401',
+          timestamp: `${thu}T09:00:00.000Z`,
+        },
+        {
+          id: 'ph-10',
+          dataUrl: createPaintDrywallSvg('after', 'Unit 415 Dining - Fresh Repose Gray', 'Filled, textured and rolled corner to corner'),
+          category: 'After / Finished',
+          caption: 'Wall completed and painted. Ready for tenant move-in.',
+          repairId: 'rep-401',
+          timestamp: `${thu}T15:00:00.000Z`,
         },
       ],
     },
@@ -267,8 +285,7 @@ export function getStoredLogs(): DailyWorkLog[] {
     console.error('Failed reading logs from localStorage', e);
   }
 
-  // First time initialization: seed realistic logs
-  const seeds = generateSeedLogs();
+  const seeds = generateSeedPaintDrywallLogs();
   saveStoredLogs(seeds);
   return seeds;
 }
@@ -285,7 +302,6 @@ export function getLogForDate(dateStr: string, logs: DailyWorkLog[]): DailyWorkL
   const existing = logs.find((l) => l.date === dateStr);
   if (existing) return existing;
 
-  // Create clean initial log for date
   const hours = calculateHours('07:30', '16:00', 30);
   return {
     id: `log-${dateStr}-${Date.now().toString(36)}`,
@@ -294,15 +310,12 @@ export function getLogForDate(dateStr: string, logs: DailyWorkLog[]): DailyWorkL
       startTime: '07:30',
       endTime: '16:00',
       breakMinutes: 30,
-      laborCategory: 'Regular Service',
+      laborCategory: 'Drywall Hanging & Patching',
       totalHours: hours.totalHours,
       overtimeHours: hours.overtimeHours,
     },
-    safetyCheckCompleted: true,
-    weatherConditions: '',
     status: 'Draft',
-    generalNotes: '',
-    units: [],
+    repairs: [],
     photos: [],
   };
 }
@@ -317,23 +330,73 @@ export function saveOrUpdateLog(log: DailyWorkLog, logs: DailyWorkLog[]): DailyW
     updated = [log, ...logs];
   }
   saveStoredLogs(updated);
+
+  // Sync to server if token exists
+  syncLogsToServer(updated);
+
   return updated;
 }
 
 export function deleteLog(dateStr: string, logs: DailyWorkLog[]): DailyWorkLog[] {
   const updated = logs.filter((l) => l.date !== dateStr);
   saveStoredLogs(updated);
+  syncLogsToServer(updated);
   return updated;
 }
 
-export function exportWeekToCsv(dates: string[], logs: DailyWorkLog[], profile: WorkerProfile): void {
+// Server API Sync Helper
+export async function syncLogsToServer(logs: DailyWorkLog[]): Promise<boolean> {
+  const { token } = getStoredAuth();
+  if (!token) return false;
+
+  try {
+    const res = await fetch('/api/worklogs', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ logs }),
+    });
+    return res.ok;
+  } catch (err) {
+    console.warn('Network sync to server deferred', err);
+    return false;
+  }
+}
+
+export async function fetchLogsFromServer(): Promise<DailyWorkLog[] | null> {
+  const { token } = getStoredAuth();
+  if (!token) return null;
+
+  try {
+    const res = await fetch('/api/worklogs', {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+    if (res.ok) {
+      const data = await res.json();
+      if (Array.isArray(data.logs)) {
+        saveStoredLogs(data.logs);
+        return data.logs;
+      }
+    }
+  } catch (err) {
+    console.warn('Could not fetch logs from server', err);
+  }
+  return null;
+}
+
+export function exportWeekToCsv(dates: string[], logs: DailyWorkLog[], profile: UserAccount): void {
   const rows: string[][] = [
-    ['WEEKLY WORK LOG REPORT', profile.companyName],
-    ['Technician:', profile.workerName, 'Tech ID:', profile.employeeId],
-    ['Supervisor:', profile.bossName, 'Supervisor Email:', profile.bossEmail],
-    ['Report Generated:', new Date().toLocaleString()],
+    ['PAINT & DRYWALL WEEKLY WORK LOG', profile.companyName],
+    ['Painter/Tech:', profile.workerName, 'Supervisor:', profile.bossName],
+    ['Boss Email:', profile.bossEmail, 'Report Period:', `${dates[0]} to ${dates[6]}`],
+    ['Report Date:', new Date().toLocaleString()],
     [''],
-    ['Date', 'Day', 'Start', 'End', 'Break (min)', 'Total Hrs', 'OT Hrs', 'Labor Category', 'Units Worked', 'Status', 'Daily Summary Notes'],
+    ['TIMESHEET HOURS'],
+    ['Date', 'Day', 'Start', 'End', 'Break (min)', 'Total Hrs', 'OT Hrs', 'Primary Activity', 'Repairs Completed', 'Status'],
   ];
 
   let weekTotalHours = 0;
@@ -343,7 +406,7 @@ export function exportWeekToCsv(dates: string[], logs: DailyWorkLog[], profile: 
     const log = logs.find((l) => l.date === dateStr);
     const dayName = new Date(dateStr + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short' });
     if (log) {
-      const unitsList = log.units.map((u) => `${u.unitNumber} (${u.status})`).join('; ') || 'None';
+      const unitsList = log.repairs.map((r) => `${r.unitNumber} (${r.damageType} - ${r.repairStage})`).join('; ') || 'None';
       rows.push([
         dateStr,
         dayName,
@@ -355,36 +418,39 @@ export function exportWeekToCsv(dates: string[], logs: DailyWorkLog[], profile: 
         log.time.laborCategory,
         `"${unitsList.replace(/"/g, '""')}"`,
         log.status,
-        `"${(log.generalNotes || '').replace(/"/g, '""')}"`,
       ]);
       weekTotalHours += log.time.totalHours;
       weekOtHours += log.time.overtimeHours;
     } else {
-      rows.push([dateStr, dayName, '-', '-', '0', '0.0', '0.0', 'Off', 'None', 'Off', 'Off duty / No entry']);
+      rows.push([dateStr, dayName, '-', '-', '0', '0.0', '0.0', 'Off', 'None', 'Off']);
     }
   });
 
   rows.push(['']);
   rows.push(['TOTALS', '', '', '', '', weekTotalHours.toFixed(1), weekOtHours.toFixed(1), '']);
 
-  // Detailed Unit Breakdown
+  // Detailed Paint & Drywall Repair Log
   rows.push(['']);
-  rows.push(['DETAILED UNIT WORK BREAKDOWN']);
-  rows.push(['Date', 'Unit / Equipment', 'Location', 'Work Order #', 'Status', 'Work Performed', 'Parts Used']);
+  rows.push(['PAINT & DRYWALL UNITS & DAMAGES LOG']);
+  rows.push(['Date', 'Unit / Apt #', 'Room / Area', 'Damage Type', 'Damage Size', 'Repair Stage', 'Paint Color', 'Sheen', 'Texture Type', 'Primer', 'Mud Compound', 'Work Performed']);
 
   dates.forEach((dateStr) => {
     const log = logs.find((l) => l.date === dateStr);
-    if (log && log.units.length > 0) {
-      log.units.forEach((u) => {
-        const partsStr = u.partsUsed.map((p) => `${p.quantity}x ${p.description} [${p.partNumber}]`).join(', ') || 'None';
+    if (log && log.repairs.length > 0) {
+      log.repairs.forEach((r) => {
         rows.push([
           dateStr,
-          `"${u.unitNumber.replace(/"/g, '""')}"`,
-          `"${u.location.replace(/"/g, '""')}"`,
-          u.workOrderNumber,
-          u.status,
-          `"${u.workPerformed.replace(/"/g, '""')}"`,
-          `"${partsStr.replace(/"/g, '""')}"`,
+          `"${r.unitNumber.replace(/"/g, '""')}"`,
+          `"${r.roomArea.replace(/"/g, '""')}"`,
+          r.damageType,
+          `"${(r.damageSize || '').replace(/"/g, '""')}"`,
+          r.repairStage,
+          `"${r.paintColor.replace(/"/g, '""')}"`,
+          r.paintSheen,
+          r.textureType,
+          `"${(r.primerUsed || '').replace(/"/g, '""')}"`,
+          `"${(r.compoundUsed || '').replace(/"/g, '""')}"`,
+          `"${r.workDescription.replace(/"/g, '""')}"`,
         ]);
       });
     }
@@ -394,22 +460,22 @@ export function exportWeekToCsv(dates: string[], logs: DailyWorkLog[], profile: 
   const encodedUri = encodeURI(csvContent);
   const link = document.createElement('a');
   link.setAttribute('href', encodedUri);
-  link.setAttribute('download', `Weekly_Work_Log_${profile.workerName.replace(/\s+/g, '_')}_${dates[0]}_to_${dates[6]}.csv`);
+  link.setAttribute('download', `Paint_Drywall_Report_${profile.workerName.replace(/\s+/g, '_')}_${dates[0]}_to_${dates[6]}.csv`);
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
 }
 
-export function generateBossEmailContent(dates: string[], logs: DailyWorkLog[], profile: WorkerProfile): { subject: string; body: string; mailtoUrl: string } {
+export function generateBossEmailContent(dates: string[], logs: DailyWorkLog[], profile: UserAccount): { subject: string; body: string; mailtoUrl: string } {
   const weekStart = formatDisplayDate(dates[0]);
   const weekEnd = formatDisplayDate(dates[6]);
 
-  const subject = `Weekly Work Log Report: ${profile.workerName} (${dates[0]} - ${dates[6]})`;
+  const subject = `Weekly Paint & Drywall Log: ${profile.workerName} (${dates[0]} - ${dates[6]})`;
 
   let totalHours = 0;
   let totalOt = 0;
   let totalPhotos = 0;
-  const unitSummaries: string[] = [];
+  const repairsSummary: string[] = [];
 
   const dailyLines = dates.map((dateStr) => {
     const log = logs.find((l) => l.date === dateStr);
@@ -419,43 +485,46 @@ export function generateBossEmailContent(dates: string[], logs: DailyWorkLog[], 
       totalOt += log.time.overtimeHours;
       totalPhotos += log.photos.length;
 
-      log.units.forEach((u) => {
-        unitSummaries.push(`• [${dateStr}] ${u.unitNumber} (${u.status}) - ${u.workPerformed.slice(0, 80)}...`);
+      log.repairs.forEach((r) => {
+        repairsSummary.push(`• [${dateStr}] ${r.unitNumber} (${r.roomArea}): ${r.damageType} - ${r.repairStage}. Color: ${r.paintColor} [${r.paintSheen}].`);
       });
 
-      return `${day}: ${log.time.startTime} - ${log.time.endTime} | ${log.time.totalHours.toFixed(1)} hrs (${log.time.overtimeHours > 0 ? log.time.overtimeHours + ' OT' : 'Reg'}) | Units: ${log.units.length} | Photos: ${log.photos.length}`;
+      return `${day}: ${log.time.startTime} - ${log.time.endTime} | ${log.time.totalHours.toFixed(1)} hrs | ${r_count(log.repairs.length)} | ${p_count(log.photos.length)}`;
     }
-    return `${day}: Off / No hours logged`;
+    return `${day}: Off duty`;
   });
+
+  function r_count(count: number) {
+    return `${count} unit repair${count === 1 ? '' : 's'}`;
+  }
+  function p_count(count: number) {
+    return `${count} photo${count === 1 ? '' : 's'}`;
+  }
 
   const body = `Hi ${profile.bossName},
 
-Here is my weekly work log summary for the week of ${weekStart} to ${weekEnd}.
+Here is my weekly paint and drywall work report for ${weekStart} to ${weekEnd}.
 
-==============================
-HOURS & TIMESHEET SUMMARY
-==============================
-Technician: ${profile.workerName} (${profile.employeeId})
+=========================================
+TIMESHEET & LABOR SUMMARY
+=========================================
+Technician: ${profile.workerName}
 Company: ${profile.companyName}
-Total Hours: ${totalHours.toFixed(1)} hrs
-Regular Hours: ${(totalHours - totalOt).toFixed(1)} hrs
-Overtime Hours: ${totalOt.toFixed(1)} hrs
-Total Units Serviced: ${unitSummaries.length}
-Attached Photos: ${totalPhotos} photo(s) on file
+Total Hours: ${totalHours.toFixed(1)} hrs (${(totalHours - totalOt).toFixed(1)} regular + ${totalOt.toFixed(1)} overtime)
+Total Unit Repairs Completed: ${repairsSummary.length}
+Attached Before/After Photos on File: ${totalPhotos} photo(s)
 
-DAILY LOGS BREAKDOWN:
----------------------------------------------
+DAILY HOURS:
 ${dailyLines.join('\n')}
 
-KEY UNITS & EQUIPMENT SERVICED:
----------------------------------------------
-${unitSummaries.length > 0 ? unitSummaries.join('\n') : 'No unit details logged this week.'}
+UNITS & DAMAGES FIXED THIS WEEK:
+-----------------------------------------
+${repairsSummary.length > 0 ? repairsSummary.join('\n') : 'No repairs logged this week.'}
 
-Complete detailed timesheet with photo attachments and parts logs is ready in the FieldLog portal.
+All before, damage, and after painted photos with color codes are logged in FieldLog.
 
 Thanks,
-${profile.workerName}
-${profile.companyPhone}`;
+${profile.workerName}`;
 
   const mailtoUrl = `mailto:${encodeURIComponent(profile.bossEmail)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
 
