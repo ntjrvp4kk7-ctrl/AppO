@@ -186,6 +186,9 @@ app.get('/api/health', (_req, res) => {
 
 // Start Server: In development uses Vite middleware; in production serves static dist
 async function startServer() {
+  const distPath = path.join(__dirname, 'dist');
+  const indexPath = path.join(distPath, 'index.html');
+
   if (!isProduction) {
     const { createServer: createViteServer } = await import('vite');
     const vite = await createViteServer({
@@ -194,12 +197,51 @@ async function startServer() {
     });
     app.use(vite.middlewares);
   } else {
-    const distPath = path.join(__dirname, 'dist');
-    app.use(express.static(distPath));
+    // If dist/index.html is missing (e.g. Render ran without explicit npm run build), auto-build it now
+    if (!fs.existsSync(indexPath)) {
+      console.log('dist/index.html not found on Render! Running Vite build automatically...');
+      try {
+        const { build } = await import('vite');
+        await build();
+        console.log('Automatic Vite build finished successfully!');
+      } catch (err) {
+        console.error('Automatic Vite build encountered error:', err);
+      }
+    }
+
+    if (fs.existsSync(distPath)) {
+      app.use(express.static(distPath));
+    }
+
     app.get('*', (_req, res) => {
-      res.sendFile(path.join(distPath, 'index.html'));
+      if (fs.existsSync(indexPath)) {
+        res.sendFile(indexPath);
+      } else {
+        res.status(503).send(`
+          <!DOCTYPE html>
+          <html>
+            <head>
+              <title>Preparing Paint & Patch Log...</title>
+              <meta http-equiv="refresh" content="3">
+              <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            </head>
+            <body style="font-family:system-ui,-apple-system,sans-serif;background:#09090b;color:#f4f4f5;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;padding:20px;text-align:center;">
+              <div>
+                <h2 style="font-size:20px;margin-bottom:8px;">Preparing Application...</h2>
+                <p style="color:#a1a1aa;font-size:14px;">Building files on Render. Refreshing automatically in 3 seconds...</p>
+              </div>
+            </body>
+          </html>
+        `);
+      }
     });
   }
+
+  // Global error safety
+  app.use((err, _req, res, _next) => {
+    console.error('Server error handler:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  });
 
   app.listen(PORT, '0.0.0.0', () => {
     console.log(`Server listening on port ${PORT} (production: ${isProduction})`);

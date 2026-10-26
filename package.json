@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "node server.js",
     "build": "vite build",
+    "postinstall": "npm run build",
     "start": "node server.js",
     "preview": "vite preview",
     "clean": "rm -rf dist",
