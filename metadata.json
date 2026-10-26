@@ -1,0 +1,6 @@
+{
+  "name": "FieldLog - Daily Work & Unit Tracker",
+  "description": "Mobile-first daily work log with time tracking, unit details, photo capture, and weekly supervisor report exporter.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

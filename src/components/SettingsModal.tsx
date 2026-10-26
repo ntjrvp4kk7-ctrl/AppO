@@ -1,0 +1,230 @@
+import React, { useState } from 'react';
+import { X, User, Briefcase, Mail, Phone, Building, RotateCcw, Trash2, Check } from 'lucide-react';
+import { WorkerProfile } from '../types/worklog';
+
+interface SettingsModalProps {
+  isOpen: boolean;
+  profile: WorkerProfile;
+  onClose: () => void;
+  onSaveProfile: (profile: WorkerProfile) => void;
+  onResetDemoData: () => void;
+  onClearAllData: () => void;
+}
+
+export const SettingsModal: React.FC<SettingsModalProps> = ({
+  isOpen,
+  profile,
+  onClose,
+  onSaveProfile,
+  onResetDemoData,
+  onClearAllData,
+}) => {
+  if (!isOpen) return null;
+
+  const [form, setForm] = useState<WorkerProfile>({ ...profile });
+  const [savedSuccess, setSavedSuccess] = useState(false);
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    onSaveProfile(form);
+    setSavedSuccess(true);
+    setTimeout(() => {
+      setSavedSuccess(false);
+      onClose();
+    }, 600);
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/85 backdrop-blur-sm animate-in fade-in duration-150">
+      <div className="relative w-full max-w-lg bg-neutral-900 border border-neutral-800 rounded-2xl overflow-hidden shadow-2xl flex flex-col max-h-[92vh]">
+        {/* Header */}
+        <div className="flex items-center justify-between px-5 py-4 border-b border-neutral-800 bg-neutral-950/80">
+          <div>
+            <h2 className="text-base font-bold text-white">Technician & Boss Settings</h2>
+            <p className="text-xs text-neutral-400">Configure report headers, company information & email</p>
+          </div>
+          <button
+            onClick={onClose}
+            className="p-1.5 text-neutral-400 hover:text-white hover:bg-neutral-800 rounded-lg transition-colors"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        {/* Form Body */}
+        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-5 space-y-4 text-sm">
+          {/* Worker Info */}
+          <div className="space-y-3">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-amber-400 flex items-center gap-1.5">
+              <User className="w-3.5 h-3.5" />
+              Your Profile (Field Worker)
+            </h3>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-semibold text-neutral-300 mb-1">
+                  Worker Full Name
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={form.workerName}
+                  onChange={(e) => setForm({ ...form, workerName: e.target.value })}
+                  className="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-3 py-2 text-xs sm:text-sm text-neutral-100 focus:outline-none focus:border-amber-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-neutral-300 mb-1">
+                  Employee / Tech ID
+                </label>
+                <input
+                  type="text"
+                  value={form.employeeId}
+                  onChange={(e) => setForm({ ...form, employeeId: e.target.value })}
+                  className="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-3 py-2 text-xs sm:text-sm text-neutral-100 font-mono focus:outline-none focus:border-amber-500"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-neutral-300 mb-1">
+                Trade / Job Title
+              </label>
+              <input
+                type="text"
+                value={form.workerTitle}
+                onChange={(e) => setForm({ ...form, workerTitle: e.target.value })}
+                className="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-3 py-2 text-xs sm:text-sm text-neutral-100 focus:outline-none focus:border-amber-500"
+              />
+            </div>
+          </div>
+
+          {/* Supervisor / Boss Info */}
+          <div className="space-y-3 pt-2 border-t border-neutral-800">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-sky-400 flex items-center gap-1.5">
+              <Briefcase className="w-3.5 h-3.5" />
+              Supervisor / Boss Details
+            </h3>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-semibold text-neutral-300 mb-1">
+                  Boss / Manager Name
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={form.bossName}
+                  onChange={(e) => setForm({ ...form, bossName: e.target.value })}
+                  className="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-3 py-2 text-xs sm:text-sm text-neutral-100 focus:outline-none focus:border-amber-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-neutral-300 mb-1">
+                  Boss Email (for reports)
+                </label>
+                <input
+                  type="email"
+                  required
+                  value={form.bossEmail}
+                  onChange={(e) => setForm({ ...form, bossEmail: e.target.value })}
+                  className="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-3 py-2 text-xs sm:text-sm text-neutral-100 focus:outline-none focus:border-amber-500"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Company Details */}
+          <div className="space-y-3 pt-2 border-t border-neutral-800">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-300 flex items-center gap-1.5">
+              <Building className="w-3.5 h-3.5" />
+              Company Header Information
+            </h3>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-semibold text-neutral-300 mb-1">
+                  Company Name
+                </label>
+                <input
+                  type="text"
+                  value={form.companyName}
+                  onChange={(e) => setForm({ ...form, companyName: e.target.value })}
+                  className="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-3 py-2 text-xs sm:text-sm text-neutral-100 focus:outline-none focus:border-amber-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-neutral-300 mb-1">
+                  Company / Dispatch Phone
+                </label>
+                <input
+                  type="text"
+                  value={form.companyPhone}
+                  onChange={(e) => setForm({ ...form, companyPhone: e.target.value })}
+                  className="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-3 py-2 text-xs sm:text-sm text-neutral-100 focus:outline-none focus:border-amber-500"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Data Controls */}
+          <div className="space-y-2 pt-2 border-t border-neutral-800">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-400">
+              Demo Data & Storage
+            </h3>
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  if (confirm('Reset to realistic demo work week with sample units and photos?')) {
+                    onResetDemoData();
+                    onClose();
+                  }
+                }}
+                className="px-3 py-1.5 bg-neutral-800 hover:bg-neutral-750 text-neutral-300 border border-neutral-700 rounded-xl text-xs font-medium flex items-center gap-1.5 transition-colors"
+              >
+                <RotateCcw className="w-3.5 h-3.5 text-amber-400" />
+                Reload Demo Work Week
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  if (confirm('Clear all stored work logs and start completely fresh?')) {
+                    onClearAllData();
+                    onClose();
+                  }
+                }}
+                className="px-3 py-1.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 border border-rose-500/20 rounded-xl text-xs font-medium flex items-center gap-1.5 transition-colors"
+              >
+                <Trash2 className="w-3.5 h-3.5 text-rose-400" />
+                Clear All Logs
+              </button>
+            </div>
+          </div>
+
+          {/* Footer Save Button */}
+          <div className="pt-3 flex items-center justify-end gap-2 border-t border-neutral-800">
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-4 py-2 text-xs text-neutral-400 hover:text-white"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              className="px-5 py-2 bg-amber-500 hover:bg-amber-400 text-neutral-950 font-bold text-xs rounded-xl shadow transition-colors flex items-center gap-1.5"
+            >
+              {savedSuccess ? <Check className="w-4 h-4" /> : null}
+              {savedSuccess ? 'Saved!' : 'Save Settings'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+};
