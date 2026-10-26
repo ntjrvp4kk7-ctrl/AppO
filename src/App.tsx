@@ -12,12 +12,11 @@ import {
   Maximize2,
   CheckCircle2,
   Plus,
-  User,
   LogIn,
   Check,
 } from 'lucide-react';
 
-import { DailyWorkLog, UserAccount, WorkPhoto, UnitRepair, TimeSection } from './types/worklog';
+import { DailyWorkLog, UserAccount, UnitPhoto, UnitWork, TimeSection } from './types/worklog';
 import {
   getStoredLogs,
   saveStoredLogs,
@@ -27,62 +26,46 @@ import {
   saveStoredAuth,
   clearStoredAuth,
   fetchLogsFromServer,
-  generateSeedPaintDrywallLogs,
+  generateSampleLogs,
 } from './utils/storage';
 import { formatDisplayDate, getTodayISODate } from './utils/dateUtils';
 
 import { TimeSectionEditor } from './components/TimeSectionEditor';
-import { PaintDrywallSectionView } from './components/PaintDrywallSectionView';
-import { PhotoSnapSection } from './components/PhotoSnapSection';
+import { UnitWorkCard } from './components/UnitWorkCard';
 import { WeeklyReportTab } from './components/WeeklyReportTab';
-import { UnitsListTab } from './components/UnitsListTab';
-import { PaintDrywallRepairModal } from './components/PaintDrywallRepairModal';
 import { PhotoViewerModal } from './components/PhotoViewerModal';
 import { SettingsModal } from './components/SettingsModal';
 import { AuthModal } from './components/AuthModal';
 
-type ActiveTab = 'daily' | 'weekly' | 'units';
+type ActiveTab = 'today' | 'weekly';
 
 export default function App() {
-  // Auth state
   const [auth, setAuth] = useState(() => getStoredAuth());
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
 
-  // Persistence state
   const [logs, setLogs] = useState<DailyWorkLog[]>(() => getStoredLogs());
-
-  // Navigation state
   const [currentDate, setCurrentDate] = useState<string>(() => getTodayISODate());
-  const [activeTab, setActiveTab] = useState<ActiveTab>('daily');
+  const [activeTab, setActiveTab] = useState<ActiveTab>('today');
   const [isMobileFrameView, setIsMobileFrameView] = useState<boolean>(true);
 
-  // Active daily log
   const [activeLog, setActiveLog] = useState<DailyWorkLog>(() =>
     getLogForDate(getTodayISODate(), getStoredLogs())
   );
 
-  // Modals state
-  const [editingRepair, setEditingRepair] = useState<UnitRepair | null>(null);
-  const [isRepairModalOpen, setIsRepairModalOpen] = useState(false);
-  const [preselectedRepairIdForPhoto, setPreselectedRepairIdForPhoto] = useState<string | null>(null);
-  const [viewingPhoto, setViewingPhoto] = useState<WorkPhoto | null>(null);
+  const [viewingPhoto, setViewingPhoto] = useState<{ photo: UnitPhoto; unitLabel?: string } | null>(null);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
-  // Sync with server on initial load if token exists
   useEffect(() => {
-    async function initServerSync() {
+    async function syncRemote() {
       if (auth.token) {
         const remoteLogs = await fetchLogsFromServer();
-        if (remoteLogs) {
-          setLogs(remoteLogs);
-        }
+        if (remoteLogs) setLogs(remoteLogs);
       }
     }
-    initServerSync();
+    syncRemote();
   }, [auth.token]);
 
-  // Keep activeLog synced with currentDate and logs
   useEffect(() => {
     setActiveLog(getLogForDate(currentDate, logs));
   }, [currentDate, logs]);
@@ -115,53 +98,47 @@ export default function App() {
     });
   };
 
-  // Repair handlers
-  const handleSaveRepair = (repair: UnitRepair) => {
-    const exists = activeLog.repairs.some((r) => r.id === repair.id);
-    let updatedRepairs: UnitRepair[];
-    if (exists) {
-      updatedRepairs = activeLog.repairs.map((r) => (r.id === repair.id ? repair : r));
-    } else {
-      updatedRepairs = [...activeLog.repairs, repair];
-    }
+  const handleAddUnit = () => {
+    const newUnit: UnitWork = {
+      id: `unit-${Date.now().toString(36)}`,
+      unitNumber: '',
+      paintColor: '',
+      notes: '',
+      photos: [],
+      isCompleted: false,
+    };
     updateActiveLog({
       ...activeLog,
-      repairs: updatedRepairs,
+      units: [newUnit, ...activeLog.units],
     });
-    showToast(`${repair.unitNumber} (${repair.damageType}) saved`);
   };
 
-  const handleDeleteRepair = (repairId: string) => {
+  const handleUpdateUnit = (updatedUnit: UnitWork) => {
+    const updatedUnits = activeLog.units.map((u) => (u.id === updatedUnit.id ? updatedUnit : u));
     updateActiveLog({
       ...activeLog,
-      repairs: activeLog.repairs.filter((r) => r.id !== repairId),
-      photos: activeLog.photos.map((p) => (p.repairId === repairId ? { ...p, repairId: undefined } : p)),
+      units: updatedUnits,
     });
-    showToast('Unit repair deleted');
   };
 
-  const handleQuickSnapForRepair = (repairId: string) => {
-    setPreselectedRepairIdForPhoto(repairId);
-    const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement;
-    if (fileInput) fileInput.click();
-  };
-
-  // Photo handlers
-  const handleAddPhoto = (photo: WorkPhoto) => {
+  const handleDeleteUnit = (unitId: string) => {
     updateActiveLog({
       ...activeLog,
-      photos: [photo, ...activeLog.photos],
+      units: activeLog.units.filter((u) => u.id !== unitId),
     });
-    setPreselectedRepairIdForPhoto(null);
-    showToast('Photo evidence attached');
+    showToast('Unit removed');
   };
 
   const handleDeletePhoto = (photoId: string) => {
+    const updatedUnits = activeLog.units.map((u) => ({
+      ...u,
+      photos: u.photos.filter((p) => p.id !== photoId),
+    }));
     updateActiveLog({
       ...activeLog,
-      photos: activeLog.photos.filter((p) => p.id !== photoId),
+      units: updatedUnits,
     });
-    showToast('Photo removed');
+    showToast('Photo deleted');
   };
 
   const handleSubmitDay = () => {
@@ -169,10 +146,9 @@ export default function App() {
       ...activeLog,
       status: 'Submitted',
     });
-    showToast(`Shift log for ${formatDisplayDate(currentDate)} submitted to boss!`);
+    showToast(`Work for ${formatDisplayDate(currentDate)} marked complete!`);
   };
 
-  // Auth handlers
   const handleAuthSuccess = (token: string, user: UserAccount) => {
     setAuth({ token, user });
     showToast(`Signed in as ${user.workerName}`);
@@ -185,11 +161,11 @@ export default function App() {
   };
 
   const handleResetDemoData = () => {
-    const seeds = generateSeedPaintDrywallLogs();
+    const seeds = generateSampleLogs();
     saveStoredLogs(seeds);
     setLogs(seeds);
     setCurrentDate(getTodayISODate());
-    showToast('Loaded demo Paint & Drywall week');
+    showToast('Loaded demo week');
   };
 
   const handleClearAllData = () => {
@@ -200,64 +176,58 @@ export default function App() {
 
   const renderAppContent = () => {
     return (
-      <div className="flex flex-col min-h-full bg-neutral-950 text-neutral-100">
-        {/* App Bar */}
-        <header className="sticky top-0 z-30 bg-neutral-900/95 backdrop-blur-md border-b border-neutral-800 px-4 py-3 shrink-0">
+      <div className="flex flex-col min-h-full bg-zinc-950 text-zinc-100 font-sans">
+        {/* Header Bar */}
+        <header className="sticky top-0 z-30 bg-zinc-950/90 backdrop-blur-md border-b border-zinc-800/80 px-4 py-3 shrink-0">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-xl bg-amber-500 text-neutral-950 flex items-center justify-center font-black text-sm shadow-sm">
+              <div className="w-8 h-8 rounded-xl bg-emerald-500 text-zinc-950 flex items-center justify-center font-black shadow-sm">
                 <Paintbrush className="w-4 h-4" />
               </div>
               <div>
-                <div className="flex items-center gap-1.5">
-                  <h1 className="text-sm font-extrabold text-white tracking-tight">Paint & Drywall Log</h1>
-                  <span className="text-[10px] font-semibold text-neutral-400 bg-neutral-800 px-1.5 py-0.2 rounded">
-                    Render App
-                  </span>
-                </div>
-                <p className="text-[11px] text-neutral-400 leading-none mt-0.5 truncate max-w-[170px] sm:max-w-xs">
+                <h1 className="text-sm font-extrabold text-white tracking-tight leading-none">
+                  Paint & Patch Log
+                </h1>
+                <p className="text-[11px] text-zinc-400 mt-0.5 truncate max-w-[180px]">
                   {auth.user.workerName} • Boss: {auth.user.bossName}
                 </p>
               </div>
             </div>
 
             <div className="flex items-center gap-1.5">
-              {/* Account status or sign in button */}
               {auth.token ? (
                 <div
                   onClick={() => setIsSettingsOpen(true)}
                   className="flex items-center gap-1 px-2 py-1 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 rounded-lg text-xs font-semibold cursor-pointer"
-                  title="Account active on Render"
+                  title="Render Account Active"
                 >
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
-                  <span className="hidden sm:inline">Saved</span>
+                  <span className="text-[11px]">Saved</span>
                 </div>
               ) : (
                 <button
                   type="button"
                   onClick={() => setIsAuthModalOpen(true)}
-                  className="flex items-center gap-1 px-2.5 py-1 text-xs font-bold text-neutral-950 bg-amber-500 hover:bg-amber-400 rounded-lg shadow-sm transition-colors"
+                  className="flex items-center gap-1 px-2.5 py-1 text-xs font-bold text-zinc-950 bg-emerald-500 hover:bg-emerald-400 rounded-lg shadow-sm transition-colors"
                 >
                   <LogIn className="w-3.5 h-3.5" />
                   <span>Sign In</span>
                 </button>
               )}
 
-              {/* Desktop toggle for frame */}
               <button
                 type="button"
                 onClick={() => setIsMobileFrameView(!isMobileFrameView)}
                 title={isMobileFrameView ? 'Switch to Wide layout' : 'Switch to Phone layout'}
-                className="hidden lg:flex items-center gap-1 p-2 text-xs font-medium text-neutral-400 hover:text-white bg-neutral-800 hover:bg-neutral-750 rounded-xl border border-neutral-700/80 transition-colors"
+                className="hidden lg:flex items-center gap-1 p-2 text-xs font-medium text-zinc-400 hover:text-white bg-zinc-900 hover:bg-zinc-850 rounded-xl border border-zinc-800 transition-colors"
               >
                 {isMobileFrameView ? <Maximize2 className="w-3.5 h-3.5" /> : <Smartphone className="w-3.5 h-3.5" />}
               </button>
 
-              {/* Settings button */}
               <button
                 type="button"
                 onClick={() => setIsSettingsOpen(true)}
-                className="p-2 text-neutral-400 hover:text-white hover:bg-neutral-800 rounded-xl transition-colors"
+                className="p-2 text-zinc-400 hover:text-white hover:bg-zinc-900 rounded-xl transition-colors"
                 title="Settings & Boss info"
               >
                 <Settings className="w-4 h-4" />
@@ -265,12 +235,12 @@ export default function App() {
             </div>
           </div>
 
-          {/* Date Selector Strip in Daily Tab */}
-          {activeTab === 'daily' && (
-            <div className="flex items-center justify-between mt-3 pt-2.5 border-t border-neutral-800/80 text-xs">
+          {/* Date Selector Strip in Today's Tab */}
+          {activeTab === 'today' && (
+            <div className="flex items-center justify-between mt-3 pt-2.5 border-t border-zinc-800/60 text-xs">
               <button
                 onClick={() => handleShiftDay(-1)}
-                className="p-1.5 text-neutral-400 hover:text-white hover:bg-neutral-800 rounded-lg transition-colors flex items-center gap-1"
+                className="p-1.5 text-zinc-400 hover:text-white hover:bg-zinc-900 rounded-lg transition-colors flex items-center gap-1"
                 title="Previous Day"
               >
                 <ChevronLeft className="w-4 h-4" />
@@ -278,7 +248,7 @@ export default function App() {
               </button>
 
               <div className="flex items-center gap-1.5">
-                <CalendarIcon className="w-3.5 h-3.5 text-amber-400" />
+                <CalendarIcon className="w-3.5 h-3.5 text-emerald-400" />
                 <input
                   type="date"
                   value={currentDate}
@@ -286,7 +256,7 @@ export default function App() {
                   className="bg-transparent text-xs font-bold text-white focus:outline-none cursor-pointer"
                 />
                 {currentDate === getTodayISODate() && (
-                  <span className="text-[10px] font-bold text-amber-400 bg-amber-500/10 border border-amber-500/20 px-1.5 py-0.5 rounded">
+                  <span className="text-[10px] font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-1.5 py-0.5 rounded">
                     Today
                   </span>
                 )}
@@ -296,14 +266,14 @@ export default function App() {
                 {currentDate !== getTodayISODate() && (
                   <button
                     onClick={() => setCurrentDate(getTodayISODate())}
-                    className="text-[11px] font-semibold text-amber-400 hover:underline px-1.5 py-1"
+                    className="text-[11px] font-semibold text-emerald-400 hover:underline px-1.5 py-1"
                   >
                     Today
                   </button>
                 )}
                 <button
                   onClick={() => handleShiftDay(1)}
-                  className="p-1.5 text-neutral-400 hover:text-white hover:bg-neutral-800 rounded-lg transition-colors flex items-center gap-1"
+                  className="p-1.5 text-zinc-400 hover:text-white hover:bg-zinc-900 rounded-lg transition-colors flex items-center gap-1"
                   title="Next Day"
                 >
                   <span className="text-[11px] font-medium hidden sm:inline">Next</span>
@@ -314,14 +284,14 @@ export default function App() {
           )}
         </header>
 
-        {/* Tab Navigation Bar */}
-        <nav className="bg-neutral-900 border-b border-neutral-800 px-3 py-2 flex items-center justify-between gap-1 shrink-0">
+        {/* 2-Tab Navigation Bar: Exactly Today's Work & Weekly Report */}
+        <nav className="bg-zinc-950 border-b border-zinc-800/80 px-3 py-2 flex items-center justify-between gap-2 shrink-0">
           <button
-            onClick={() => setActiveTab('daily')}
-            className={`flex-1 py-2 px-2 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all ${
-              activeTab === 'daily'
-                ? 'bg-amber-500 text-neutral-950 shadow-sm'
-                : 'text-neutral-400 hover:text-neutral-200 hover:bg-neutral-850'
+            onClick={() => setActiveTab('today')}
+            className={`flex-1 py-2 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all ${
+              activeTab === 'today'
+                ? 'bg-emerald-500 text-zinc-950 shadow-sm'
+                : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900'
             }`}
           >
             <Clock className="w-3.5 h-3.5" />
@@ -330,105 +300,109 @@ export default function App() {
 
           <button
             onClick={() => setActiveTab('weekly')}
-            className={`flex-1 py-2 px-2 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all ${
+            className={`flex-1 py-2 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all ${
               activeTab === 'weekly'
-                ? 'bg-amber-500 text-neutral-950 shadow-sm'
-                : 'text-neutral-400 hover:text-neutral-200 hover:bg-neutral-850'
+                ? 'bg-emerald-500 text-zinc-950 shadow-sm'
+                : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900'
             }`}
           >
             <FileText className="w-3.5 h-3.5" />
             <span>Weekly Report</span>
           </button>
-
-          <button
-            onClick={() => setActiveTab('units')}
-            className={`flex-1 py-2 px-2 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all ${
-              activeTab === 'units'
-                ? 'bg-amber-500 text-neutral-950 shadow-sm'
-                : 'text-neutral-400 hover:text-neutral-200 hover:bg-neutral-850'
-            }`}
-          >
-            <Paintbrush className="w-3.5 h-3.5" />
-            <span>All Units</span>
-          </button>
         </nav>
 
         {/* Main Content Area */}
-        <main className="flex-1 overflow-y-auto p-3 sm:p-4 pb-20 space-y-4">
-          {activeTab === 'daily' && (
+        <main className="flex-1 overflow-y-auto p-3.5 sm:p-4 pb-24 space-y-4">
+          {activeTab === 'today' && (
             <div className="space-y-4 animate-in fade-in duration-150">
-              {/* Header Status Bar */}
+              {/* Day Header */}
               <div className="flex items-center justify-between px-1">
                 <div>
                   <h2 className="text-base font-extrabold text-white">
                     {formatDisplayDate(currentDate)}
                   </h2>
-                  <span className="text-xs text-neutral-400">
-                    {activeLog.time.totalHours.toFixed(1)} hrs • {activeLog.repairs.length} unit repair{activeLog.repairs.length === 1 ? '' : 's'} • {activeLog.photos.length} photo{activeLog.photos.length === 1 ? '' : 's'}
+                  <span className="text-xs text-zinc-400">
+                    {activeLog.units.length} unit{activeLog.units.length === 1 ? '' : 's'} worked today
                   </span>
                 </div>
 
-                <div className="flex items-center gap-2">
-                  <span
-                    className={`text-xs font-bold px-2.5 py-1 rounded-lg border ${
-                      activeLog.status === 'Submitted'
-                        ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
-                        : 'bg-neutral-800 text-neutral-300 border-neutral-700'
-                    }`}
-                  >
-                    {activeLog.status}
-                  </span>
-                </div>
+                <span
+                  className={`text-xs font-bold px-2.5 py-1 rounded-lg border ${
+                    activeLog.status === 'Submitted'
+                      ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
+                      : 'bg-zinc-800 text-zinc-300 border-zinc-700'
+                  }`}
+                >
+                  {activeLog.status === 'Submitted' ? 'Submitted' : 'In Progress'}
+                </span>
               </div>
 
-              {/* 1. Time Tracking Section */}
+              {/* Shift Hours Tracker (No primary task dropdown) */}
               <TimeSectionEditor
                 time={activeLog.time}
                 onTimeChange={handleTimeChange}
               />
 
-              {/* 2. Paint & Drywall Unit Repairs Section */}
-              <PaintDrywallSectionView
-                repairs={activeLog.repairs}
-                photos={activeLog.photos}
-                onAddRepairClick={() => {
-                  setEditingRepair(null);
-                  setIsRepairModalOpen(true);
-                }}
-                onEditRepairClick={(repair) => {
-                  setEditingRepair(repair);
-                  setIsRepairModalOpen(true);
-                }}
-                onDeleteRepair={handleDeleteRepair}
-                onQuickSnapForRepair={handleQuickSnapForRepair}
-                onOpenPhotoViewer={(photo) => setViewingPhoto(photo)}
-              />
-
-              {/* 3. Before & After Photo Snapping Area */}
-              <PhotoSnapSection
-                photos={activeLog.photos}
-                repairs={activeLog.repairs}
-                preselectedRepairId={preselectedRepairIdForPhoto}
-                onAddPhoto={handleAddPhoto}
-                onDeletePhoto={handleDeletePhoto}
-                onOpenViewer={(photo) => setViewingPhoto(photo)}
-              />
-
-              {/* Shift Completed Submit Button for Boss */}
-              <div className="bg-neutral-900 border border-neutral-800/90 rounded-2xl p-4 flex items-center justify-between">
-                <div>
-                  <h4 className="text-xs font-bold text-white">Finished Shift for {formatDisplayDate(currentDate)}?</h4>
-                  <p className="text-[11px] text-neutral-400">Locks hours and marks day submitted for boss review</p>
+              {/* Units Work Section */}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between px-1">
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-zinc-400">
+                    Units Worked ({activeLog.units.length})
+                  </h3>
+                  <button
+                    type="button"
+                    onClick={handleAddUnit}
+                    className="inline-flex items-center gap-1.5 py-1.5 px-3 bg-emerald-500 hover:bg-emerald-400 text-zinc-950 font-bold rounded-xl text-xs active:scale-95 transition-all shadow-sm"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>Add Unit</span>
+                  </button>
                 </div>
-                <button
-                  type="button"
-                  onClick={handleSubmitDay}
-                  className="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-neutral-950 font-bold rounded-xl text-xs active:scale-95 transition-all shadow-md flex items-center gap-1.5"
-                >
-                  <Check className="w-4 h-4" />
-                  <span>{activeLog.status === 'Submitted' ? 'Update Day' : 'Submit Day to Boss'}</span>
-                </button>
+
+                {activeLog.units.length > 0 ? (
+                  <div className="space-y-3.5">
+                    {activeLog.units.map((unit) => (
+                      <UnitWorkCard
+                        key={unit.id}
+                        unit={unit}
+                        onUpdateUnit={handleUpdateUnit}
+                        onDeleteUnit={handleDeleteUnit}
+                        onOpenPhotoViewer={(photo, unitLabel) => setViewingPhoto({ photo, unitLabel })}
+                      />
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-10 px-4 border border-dashed border-zinc-800 rounded-2xl bg-zinc-900/40 space-y-2">
+                    <Paintbrush className="w-7 h-7 mx-auto text-zinc-600" />
+                    <p className="text-xs text-zinc-300 font-semibold">No units added yet for today</p>
+                    <p className="text-[11px] text-zinc-500 max-w-xs mx-auto">
+                      Go into the unit, snap damage photos, patch and paint, snap the finished wall, clean floors and leave.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={handleAddUnit}
+                      className="mt-2 inline-flex items-center gap-1 text-xs font-bold text-zinc-950 bg-emerald-500 hover:bg-emerald-400 px-3.5 py-1.5 rounded-xl shadow transition-all"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      Add Unit
+                    </button>
+                  </div>
+                )}
               </div>
+
+              {/* Finish Day Button */}
+              {activeLog.units.length > 0 && (
+                <div className="pt-2">
+                  <button
+                    type="button"
+                    onClick={handleSubmitDay}
+                    className="w-full py-3 bg-zinc-900 hover:bg-zinc-850 border border-zinc-700/80 rounded-2xl text-xs font-bold text-white flex items-center justify-center gap-2 active:scale-98 transition-all shadow-sm"
+                  >
+                    <Check className="w-4 h-4 text-emerald-400" />
+                    <span>{activeLog.status === 'Submitted' ? 'Update & Submit Day' : 'Mark Day Finished'}</span>
+                  </button>
+                </div>
+              )}
             </div>
           )}
 
@@ -440,62 +414,51 @@ export default function App() {
                 profile={auth.user}
                 onSelectDate={(dateStr) => {
                   setCurrentDate(dateStr);
-                  setActiveTab('daily');
+                  setActiveTab('today');
                 }}
-                onOpenPhotoViewer={(photo) => setViewingPhoto(photo)}
+                onOpenPhotoViewer={(photo, unitLabel) => setViewingPhoto({ photo, unitLabel })}
                 onSaveLogs={(updatedList) => {
                   setLogs(updatedList);
                   saveStoredLogs(updatedList);
-                  showToast('Weekly approvals updated');
+                  showToast('Week updated');
                 }}
-              />
-            </div>
-          )}
-
-          {activeTab === 'units' && (
-            <div className="animate-in fade-in duration-150">
-              <UnitsListTab
-                logs={logs}
-                onSelectDate={(dateStr) => {
-                  setCurrentDate(dateStr);
-                  setActiveTab('daily');
-                }}
-                onOpenPhotoViewer={(photo) => setViewingPhoto(photo)}
               />
             </div>
           )}
         </main>
 
-        {/* Bottom Quick Action Dock on Mobile */}
-        {activeTab === 'daily' && (
-          <div className="fixed bottom-0 inset-x-0 p-3 bg-neutral-900/90 backdrop-blur-md border-t border-neutral-800 z-20 flex items-center justify-between gap-2 max-w-lg mx-auto">
+        {/* Bottom Quick-Action Bar */}
+        {activeTab === 'today' && (
+          <div className="fixed bottom-0 inset-x-0 p-3 bg-zinc-950/90 backdrop-blur-md border-t border-zinc-800/80 z-20 flex items-center justify-between gap-2 max-w-lg mx-auto">
             <button
-              onClick={() => {
-                setEditingRepair(null);
-                setIsRepairModalOpen(true);
-              }}
-              className="flex-1 py-2.5 px-3 bg-neutral-800 hover:bg-neutral-750 text-neutral-200 border border-neutral-700/80 font-bold rounded-xl text-xs flex items-center justify-center gap-1.5 active:scale-95 transition-all"
+              onClick={handleAddUnit}
+              className="flex-1 py-2.5 px-3 bg-zinc-900 hover:bg-zinc-850 text-zinc-200 border border-zinc-800 font-bold rounded-xl text-xs flex items-center justify-center gap-1.5 active:scale-95 transition-all"
             >
-              <Plus className="w-3.5 h-3.5 text-amber-400" />
+              <Plus className="w-3.5 h-3.5 text-emerald-400" />
               <span>+ Add Unit</span>
             </button>
 
             <button
               onClick={() => {
-                const photoInput = document.querySelector('input[type="file"]') as HTMLInputElement;
-                if (photoInput) photoInput.click();
+                if (activeLog.units.length === 0) {
+                  handleAddUnit();
+                } else {
+                  // Trigger first unit's before camera
+                  const cam = document.querySelector('input[type="file"]') as HTMLInputElement;
+                  if (cam) cam.click();
+                }
               }}
-              className="flex-1 py-2.5 px-3 bg-amber-500 hover:bg-amber-400 text-neutral-950 font-bold rounded-xl text-xs flex items-center justify-center gap-1.5 active:scale-95 transition-all shadow-md"
+              className="flex-1 py-2.5 px-3 bg-emerald-500 hover:bg-emerald-400 text-zinc-950 font-bold rounded-xl text-xs flex items-center justify-center gap-1.5 active:scale-95 transition-all shadow-md"
             >
               <Camera className="w-4 h-4" />
-              <span>Snap Before/After</span>
+              <span>Snap Photo</span>
             </button>
           </div>
         )}
 
-        {/* Toast Alert */}
+        {/* Toast */}
         {toastMessage && (
-          <div className="fixed bottom-16 left-1/2 -translate-x-1/2 z-50 bg-neutral-800 text-white border border-neutral-700 shadow-xl px-4 py-2 rounded-xl text-xs font-semibold flex items-center gap-2 animate-in fade-in slide-in-from-bottom-2 duration-150">
+          <div className="fixed bottom-16 left-1/2 -translate-x-1/2 z-50 bg-zinc-800 text-white border border-zinc-700 shadow-xl px-4 py-2 rounded-xl text-xs font-semibold flex items-center gap-2 animate-in fade-in slide-in-from-bottom-2 duration-150">
             <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
             <span>{toastMessage}</span>
           </div>
@@ -505,12 +468,12 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen bg-neutral-950 flex items-center justify-center font-sans antialiased">
+    <div className="min-h-screen bg-zinc-950 flex items-center justify-center font-sans antialiased">
       {isMobileFrameView ? (
-        <div className="w-full max-w-md h-[100dvh] sm:h-[860px] sm:max-h-[92vh] sm:border-[10px] sm:border-neutral-800 sm:rounded-[44px] overflow-hidden shadow-2xl relative flex flex-col bg-neutral-950 sm:ring-1 sm:ring-neutral-700/60">
+        <div className="w-full max-w-md h-[100dvh] sm:h-[860px] sm:max-h-[92vh] sm:border-[10px] sm:border-zinc-850 sm:rounded-[44px] overflow-hidden shadow-2xl relative flex flex-col bg-zinc-950 sm:ring-1 sm:ring-zinc-800">
           <div className="hidden sm:block absolute top-0 inset-x-0 h-5 z-40 pointer-events-none">
-            <div className="w-28 h-4 bg-neutral-800 mx-auto rounded-b-xl flex items-center justify-center">
-              <div className="w-3 h-3 rounded-full bg-neutral-950"></div>
+            <div className="w-28 h-4 bg-zinc-850 mx-auto rounded-b-xl flex items-center justify-center">
+              <div className="w-3 h-3 rounded-full bg-zinc-950"></div>
             </div>
           </div>
 
@@ -519,23 +482,15 @@ export default function App() {
           </div>
         </div>
       ) : (
-        <div className="w-full max-w-4xl min-h-screen mx-auto flex flex-col border-x border-neutral-800 bg-neutral-950">
+        <div className="w-full max-w-4xl min-h-screen mx-auto flex flex-col border-x border-zinc-800 bg-zinc-950">
           {renderAppContent()}
         </div>
       )}
 
-      {/* Paint & Drywall Repair Editor Modal */}
-      <PaintDrywallRepairModal
-        repair={editingRepair}
-        isOpen={isRepairModalOpen}
-        onClose={() => setIsRepairModalOpen(false)}
-        onSave={handleSaveRepair}
-      />
-
       {/* Photo Viewer Modal */}
       <PhotoViewerModal
-        photo={viewingPhoto}
-        repairs={activeLog.repairs}
+        photo={viewingPhoto?.photo || null}
+        unitLabel={viewingPhoto?.unitLabel}
         onClose={() => setViewingPhoto(null)}
         onDelete={(photoId) => {
           handleDeletePhoto(photoId);
@@ -552,7 +507,7 @@ export default function App() {
         onSaveProfile={(newProf) => {
           setAuth({ ...auth, user: newProf });
           saveStoredAuth(auth.token, newProf);
-          showToast('Settings updated');
+          showToast('Settings saved');
         }}
         onOpenAuth={() => setIsAuthModalOpen(true)}
         onLogout={handleLogout}
@@ -560,7 +515,7 @@ export default function App() {
         onClearAllData={handleClearAllData}
       />
 
-      {/* Authentication Modal */}
+      {/* Auth Modal */}
       <AuthModal
         isOpen={isAuthModalOpen}
         currentUser={auth.user}

@@ -1,25 +1,20 @@
 import React, { useState } from 'react';
 import {
-  Calendar,
   ChevronLeft,
   ChevronRight,
   Printer,
   Mail,
-  FileSpreadsheet,
   Copy,
   Check,
   Clock,
   Paintbrush,
-  Camera,
+  UserCheck,
   ChevronDown,
   ChevronUp,
-  UserCheck,
-  Home,
-  CheckCircle2,
 } from 'lucide-react';
-import { DailyWorkLog, UserAccount, WorkPhoto, UnitRepair } from '../types/worklog';
-import { getWeekRange, shiftWeek, formatDisplayDate, formatShortDate } from '../utils/dateUtils';
-import { exportWeekToCsv, generateBossEmailContent } from '../utils/storage';
+import { DailyWorkLog, UserAccount, UnitPhoto } from '../types/worklog';
+import { getWeekRange, shiftWeek, formatShortDate } from '../utils/dateUtils';
+import { generateBossEmailContent } from '../utils/storage';
 import { WeeklyPrintView } from './WeeklyPrintView';
 
 interface WeeklyReportTabProps {
@@ -27,7 +22,7 @@ interface WeeklyReportTabProps {
   logs: DailyWorkLog[];
   profile: UserAccount;
   onSelectDate: (dateStr: string) => void;
-  onOpenPhotoViewer: (photo: WorkPhoto) => void;
+  onOpenPhotoViewer: (photo: UnitPhoto, unitLabel: string) => void;
   onSaveLogs: (logs: DailyWorkLog[]) => void;
 }
 
@@ -51,26 +46,15 @@ export const WeeklyReportTab: React.FC<WeeklyReportTabProps> = ({
   const weekRange = getWeekRange(weekStart);
   const dates = weekRange.dates;
 
-  const handlePrevWeek = () => {
-    setWeekStart(shiftWeek(weekStart, -1));
-  };
+  const handlePrevWeek = () => setWeekStart(shiftWeek(weekStart, -1));
+  const handleNextWeek = () => setWeekStart(shiftWeek(weekStart, 1));
+  const handleCurrentWeek = () => setWeekStart(getWeekRange(new Date()).start);
 
-  const handleNextWeek = () => {
-    setWeekStart(shiftWeek(weekStart, 1));
-  };
-
-  const handleCurrentWeek = () => {
-    setWeekStart(getWeekRange(new Date()).start);
-  };
-
-  // Compute stats
   let totalHours = 0;
   let totalRegular = 0;
   let totalOvertime = 0;
-  let totalRepairsCount = 0;
+  let totalUnitsCount = 0;
   let totalPhotosCount = 0;
-  const weekPhotos: { photo: WorkPhoto; repair?: UnitRepair; date: string }[] = [];
-  const weekRepairs: { repair: UnitRepair; date: string }[] = [];
 
   dates.forEach((dateStr) => {
     const log = logs.find((l) => l.date === dateStr);
@@ -78,26 +62,15 @@ export const WeeklyReportTab: React.FC<WeeklyReportTabProps> = ({
       totalHours += log.time.totalHours;
       totalRegular += Math.min(8, log.time.totalHours);
       totalOvertime += log.time.overtimeHours;
-      totalRepairsCount += log.repairs.length;
-      totalPhotosCount += log.photos.length;
-
-      log.repairs.forEach((r) => {
-        weekRepairs.push({ repair: r, date: dateStr });
-      });
-
-      log.photos.forEach((p) => {
-        const r = log.repairs.find((item) => item.id === p.repairId);
-        weekPhotos.push({ photo: p, repair: r, date: dateStr });
+      totalUnitsCount += log.units.length;
+      log.units.forEach((u) => {
+        totalPhotosCount += u.photos.length;
       });
     }
   });
 
   const handlePrint = () => {
     window.print();
-  };
-
-  const handleExportCsv = () => {
-    exportWeekToCsv(dates, logs, profile);
   };
 
   const handleEmailBoss = () => {
@@ -155,48 +128,48 @@ export const WeeklyReportTab: React.FC<WeeklyReportTabProps> = ({
 
       <div className="no-print space-y-4">
         {/* Week Selector Bar */}
-        <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-3 sm:p-4 flex flex-col sm:flex-row items-center justify-between gap-3">
-          <div className="flex items-center gap-2">
+        <div className="bg-zinc-900/90 border border-zinc-800 rounded-2xl p-3.5 flex items-center justify-between">
+          <div className="flex items-center gap-1.5">
             <button
               onClick={handlePrevWeek}
-              className="p-2 text-neutral-400 hover:text-white hover:bg-neutral-800 rounded-xl transition-colors"
+              className="p-1.5 text-zinc-400 hover:text-white hover:bg-zinc-800 rounded-lg transition-colors"
               title="Previous Week"
             >
               <ChevronLeft className="w-5 h-5" />
             </button>
-            <div className="text-center sm:text-left">
-              <span className="text-[10px] uppercase font-bold tracking-wider text-amber-400 block">
-                Weekly Paint & Drywall Report
+            <div>
+              <span className="text-[10px] uppercase font-bold tracking-wider text-emerald-400 block">
+                Weekly Report
               </span>
-              <h2 className="text-sm sm:text-base font-extrabold text-white">
+              <h2 className="text-sm font-extrabold text-white">
                 {formatShortDate(dates[0])} – {formatShortDate(dates[6])}
               </h2>
             </div>
             <button
               onClick={handleNextWeek}
-              className="p-2 text-neutral-400 hover:text-white hover:bg-neutral-800 rounded-xl transition-colors"
+              className="p-1.5 text-zinc-400 hover:text-white hover:bg-zinc-800 rounded-lg transition-colors"
               title="Next Week"
             >
               <ChevronRight className="w-5 h-5" />
             </button>
           </div>
 
-          <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+          <div className="flex items-center gap-1.5">
             <button
               onClick={handleCurrentWeek}
-              className="px-3 py-1.5 text-xs font-semibold text-neutral-300 hover:text-white bg-neutral-800 hover:bg-neutral-750 rounded-xl border border-neutral-700/80 transition-colors"
+              className="px-2.5 py-1 text-xs font-semibold text-zinc-300 hover:text-white bg-zinc-800 rounded-lg transition-colors"
             >
-              Current Week
+              This Week
             </button>
             {isWeekApproved ? (
-              <span className="flex items-center gap-1 px-2.5 py-1.5 bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs font-bold rounded-xl">
+              <span className="flex items-center gap-1 px-2.5 py-1 bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs font-bold rounded-lg">
                 <Check className="w-3.5 h-3.5" />
-                Boss Approved
+                Approved
               </span>
             ) : (
               <button
                 onClick={() => setShowSignoffModal(true)}
-                className="px-3 py-1.5 text-xs font-semibold text-amber-400 hover:text-amber-300 bg-amber-500/10 hover:bg-amber-500/20 rounded-xl border border-amber-500/30 transition-colors flex items-center gap-1"
+                className="px-2.5 py-1 text-xs font-semibold text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20 rounded-lg border border-emerald-500/30 transition-colors flex items-center gap-1"
               >
                 <UserCheck className="w-3.5 h-3.5" />
                 Boss Sign-off
@@ -206,106 +179,74 @@ export const WeeklyReportTab: React.FC<WeeklyReportTabProps> = ({
         </div>
 
         {/* Weekly KPI Highlights */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-          <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-3.5">
-            <div className="flex items-center justify-between text-neutral-400 mb-1">
-              <span className="text-[11px] font-semibold">Total Hours</span>
-              <Clock className="w-4 h-4 text-amber-400" />
-            </div>
-            <div className="text-xl font-black text-white font-mono-numbers">
-              {totalHours.toFixed(1)} <span className="text-xs font-normal text-neutral-400">hrs</span>
-            </div>
-            <div className="text-[10px] text-neutral-500 mt-1">
+        <div className="grid grid-cols-3 gap-2.5">
+          <div className="bg-zinc-900/90 border border-zinc-800 rounded-2xl p-3.5 text-center">
+            <span className="text-[11px] font-semibold text-zinc-400 block mb-0.5">Total Hours</span>
+            <span className="text-xl font-black text-white font-mono-numbers">
+              {totalHours.toFixed(1)} <span className="text-xs font-normal text-zinc-500">hrs</span>
+            </span>
+            <span className="text-[10px] text-zinc-500 block mt-0.5">
               {totalRegular.toFixed(1)} reg • {totalOvertime.toFixed(1)} OT
-            </div>
-          </div>
-
-          <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-3.5">
-            <div className="flex items-center justify-between text-neutral-400 mb-1">
-              <span className="text-[11px] font-semibold">Units Repaired</span>
-              <Paintbrush className="w-4 h-4 text-emerald-400" />
-            </div>
-            <div className="text-xl font-black text-white font-mono-numbers">
-              {totalRepairsCount}
-            </div>
-            <div className="text-[10px] text-neutral-500 mt-1">
-              Across {dates.filter((d) => logs.some((l) => l.date === d && l.repairs.length > 0)).length} days
-            </div>
-          </div>
-
-          <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-3.5">
-            <div className="flex items-center justify-between text-neutral-400 mb-1">
-              <span className="text-[11px] font-semibold">Photo Proofs</span>
-              <Camera className="w-4 h-4 text-sky-400" />
-            </div>
-            <div className="text-xl font-black text-white font-mono-numbers">
-              {totalPhotosCount}
-            </div>
-            <div className="text-[10px] text-neutral-500 mt-1">
-              Before / Damage & After
-            </div>
-          </div>
-
-          <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-3.5">
-            <div className="flex items-center justify-between text-neutral-400 mb-1">
-              <span className="text-[11px] font-semibold">Overtime</span>
-              <Clock className="w-4 h-4 text-amber-400" />
-            </div>
-            <div className={`text-xl font-black font-mono-numbers ${totalOvertime > 0 ? 'text-amber-400' : 'text-neutral-400'}`}>
-              {totalOvertime.toFixed(1)} <span className="text-xs font-normal text-neutral-400">hrs</span>
-            </div>
-            <div className="text-[10px] text-neutral-500 mt-1">
-              {totalOvertime > 0 ? 'OT payable' : 'Standard week'}
-            </div>
-          </div>
-        </div>
-
-        {/* Action Toolbar for Boss Export */}
-        <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-3 sm:p-4 space-y-3">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-neutral-200">Export Report for Boss</span>
-            <span className="text-[11px] text-neutral-400">
-              Boss: {profile.bossName} ({profile.bossEmail || 'No email configured'})
             </span>
           </div>
 
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+          <div className="bg-zinc-900/90 border border-zinc-800 rounded-2xl p-3.5 text-center">
+            <span className="text-[11px] font-semibold text-zinc-400 block mb-0.5">Units Finished</span>
+            <span className="text-xl font-black text-emerald-400 font-mono-numbers">
+              {totalUnitsCount}
+            </span>
+            <span className="text-[10px] text-zinc-500 block mt-0.5">
+              Patched & painted
+            </span>
+          </div>
+
+          <div className="bg-zinc-900/90 border border-zinc-800 rounded-2xl p-3.5 text-center">
+            <span className="text-[11px] font-semibold text-zinc-400 block mb-0.5">Photo Proofs</span>
+            <span className="text-xl font-black text-white font-mono-numbers">
+              {totalPhotosCount}
+            </span>
+            <span className="text-[10px] text-zinc-500 block mt-0.5">
+              Before / After pics
+            </span>
+          </div>
+        </div>
+
+        {/* Actions for Boss (NO SHEETS) */}
+        <div className="bg-zinc-900/90 border border-zinc-800 rounded-2xl p-3.5 space-y-2.5">
+          <div className="flex items-center justify-between text-xs">
+            <span className="font-bold text-zinc-200">Send to Boss</span>
+            <span className="text-zinc-500">{profile.bossName} ({profile.bossEmail || 'No email'})</span>
+          </div>
+
+          <div className="grid grid-cols-3 gap-2">
+            <button
+              onClick={handleEmailBoss}
+              className="py-2.5 px-3 bg-emerald-500 hover:bg-emerald-400 text-zinc-950 font-bold rounded-xl text-xs active:scale-95 transition-all flex items-center justify-center gap-1.5 shadow-sm"
+            >
+              <Mail className="w-4 h-4" />
+              <span>Email Boss</span>
+            </button>
+
             <button
               onClick={handlePrint}
-              className="flex items-center justify-center gap-2 py-2.5 px-3 bg-amber-500 hover:bg-amber-400 text-neutral-950 font-bold rounded-xl text-xs active:scale-[0.98] transition-all shadow-sm"
+              className="py-2.5 px-3 bg-zinc-800 hover:bg-zinc-750 text-zinc-200 border border-zinc-700/80 font-bold rounded-xl text-xs active:scale-95 transition-all flex items-center justify-center gap-1.5"
             >
               <Printer className="w-4 h-4" />
               <span>Print / PDF</span>
             </button>
 
             <button
-              onClick={handleEmailBoss}
-              className="flex items-center justify-center gap-2 py-2.5 px-3 bg-neutral-800 hover:bg-neutral-750 text-neutral-200 border border-neutral-700/80 font-semibold rounded-xl text-xs active:scale-[0.98] transition-all"
-            >
-              <Mail className="w-4 h-4 text-amber-400" />
-              <span>Email Boss</span>
-            </button>
-
-            <button
-              onClick={handleExportCsv}
-              className="flex items-center justify-center gap-2 py-2.5 px-3 bg-neutral-800 hover:bg-neutral-750 text-neutral-200 border border-neutral-700/80 font-semibold rounded-xl text-xs active:scale-[0.98] transition-all"
-            >
-              <FileSpreadsheet className="w-4 h-4 text-emerald-400" />
-              <span>CSV Sheet</span>
-            </button>
-
-            <button
               onClick={handleCopySummary}
-              className="flex items-center justify-center gap-2 py-2.5 px-3 bg-neutral-800 hover:bg-neutral-750 text-neutral-200 border border-neutral-700/80 font-semibold rounded-xl text-xs active:scale-[0.98] transition-all"
+              className="py-2.5 px-3 bg-zinc-800 hover:bg-zinc-750 text-zinc-200 border border-zinc-700/80 font-bold rounded-xl text-xs active:scale-95 transition-all flex items-center justify-center gap-1.5"
             >
               {copiedText ? (
                 <>
                   <Check className="w-4 h-4 text-emerald-400" />
-                  <span className="text-emerald-400 font-bold">Copied!</span>
+                  <span className="text-emerald-400">Copied!</span>
                 </>
               ) : (
                 <>
-                  <Copy className="w-4 h-4 text-neutral-400" />
+                  <Copy className="w-4 h-4 text-zinc-400" />
                   <span>Copy Text</span>
                 </>
               )}
@@ -313,14 +254,11 @@ export const WeeklyReportTab: React.FC<WeeklyReportTabProps> = ({
           </div>
         </div>
 
-        {/* Daily Breakdown List */}
-        <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-4 space-y-3">
-          <div className="flex items-center justify-between">
-            <h3 className="text-sm font-bold text-neutral-100">Daily Breakdown</h3>
-            <span className="text-xs text-neutral-400 font-mono-numbers">
-              {dates[0]} to {dates[6]}
-            </span>
-          </div>
+        {/* Daily Shifts & Units Accordion */}
+        <div className="bg-zinc-900/90 border border-zinc-800 rounded-2xl p-4 space-y-3">
+          <h3 className="text-xs font-bold uppercase tracking-wider text-zinc-400">
+            Shifts & Units This Week
+          </h3>
 
           <div className="space-y-2">
             {dates.map((dateStr) => {
@@ -335,112 +273,114 @@ export const WeeklyReportTab: React.FC<WeeklyReportTabProps> = ({
               return (
                 <div
                   key={dateStr}
-                  className="bg-neutral-950 border border-neutral-800/80 rounded-xl overflow-hidden transition-all"
+                  className="bg-zinc-950 border border-zinc-800/80 rounded-xl overflow-hidden transition-all"
                 >
                   <div
                     onClick={() => setExpandedDay(isExpanded ? null : dateStr)}
-                    className="p-3 flex items-center justify-between cursor-pointer select-none hover:bg-neutral-900/50 transition-colors"
+                    className="p-3 flex items-center justify-between cursor-pointer select-none hover:bg-zinc-900/50"
                   >
                     <div className="flex items-center gap-3">
-                      <div className="w-20">
+                      <div>
                         <span className="text-xs font-bold text-white block">{dayName}</span>
-                        <span className="text-[10px] text-neutral-500">
-                          {log ? log.time.laborCategory : 'Off Duty'}
+                        <span className="text-[10px] text-zinc-500">
+                          {log ? `${log.units.length} unit${log.units.length === 1 ? '' : 's'}` : 'Off'}
                         </span>
-                      </div>
-
-                      <div className="hidden sm:flex items-center gap-2 text-xs text-neutral-400">
-                        {log ? (
-                          <>
-                            <span className="font-mono text-neutral-300">
-                              {log.time.startTime} - {log.time.endTime}
-                            </span>
-                            <span>•</span>
-                            <span>{log.repairs.length} repair{log.repairs.length === 1 ? '' : 's'}</span>
-                            <span>•</span>
-                            <span>{log.photos.length} photo{log.photos.length === 1 ? '' : 's'}</span>
-                          </>
-                        ) : (
-                          <span className="italic text-neutral-500">No shift hours recorded</span>
-                        )}
                       </div>
                     </div>
 
                     <div className="flex items-center gap-3">
                       {log ? (
-                        <div className="text-right">
-                          <span className="text-sm font-bold text-white font-mono-numbers">
-                            {log.time.totalHours.toFixed(1)} <span className="text-[11px] font-normal text-neutral-400">hrs</span>
-                          </span>
-                          {log.time.overtimeHours > 0 && (
-                            <span className="text-[10px] text-amber-400 block font-mono">
-                              +{log.time.overtimeHours.toFixed(1)} OT
-                            </span>
-                          )}
-                        </div>
+                        <span className="text-sm font-bold text-white font-mono-numbers">
+                          {log.time.totalHours.toFixed(1)} <span className="text-xs font-normal text-zinc-400">hrs</span>
+                        </span>
                       ) : (
-                        <span className="text-xs text-neutral-500 font-mono">0.0 hrs</span>
+                        <span className="text-xs text-zinc-600 font-mono">0.0 hrs</span>
                       )}
-
-                      <div className="text-neutral-500">
+                      <div className="text-zinc-500">
                         {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
                       </div>
                     </div>
                   </div>
 
                   {isExpanded && (
-                    <div className="p-3.5 bg-neutral-900/70 border-t border-neutral-800 text-xs space-y-3">
-                      {log ? (
-                        <>
-                          <div>
-                            <span className="font-semibold text-neutral-300 block mb-1.5">
-                              Units & Repairs on {dayName}:
-                            </span>
-                            {log.repairs.length > 0 ? (
-                              <div className="space-y-2">
-                                {log.repairs.map((r) => (
-                                  <div
-                                    key={r.id}
-                                    className="p-2.5 bg-neutral-950 rounded-lg border border-neutral-800 text-neutral-300 space-y-1"
-                                  >
-                                    <div className="flex justify-between font-bold text-white">
-                                      <span>{r.unitNumber} • {r.roomArea}</span>
-                                      <span className="text-emerald-400 font-semibold">{r.repairStage}</span>
-                                    </div>
-                                    <div className="text-[11px] text-amber-400 font-medium">
-                                      {r.damageType} {r.damageSize ? `(${r.damageSize})` : ''} • Color: {r.paintColor} [{r.paintSheen}]
-                                    </div>
-                                    {r.workDescription && (
-                                      <p className="text-[11px] text-neutral-400 mt-0.5">{r.workDescription}</p>
-                                    )}
-                                  </div>
-                                ))}
-                              </div>
-                            ) : (
-                              <p className="text-neutral-500 italic">No specific units recorded.</p>
-                            )}
-                          </div>
+                    <div className="p-3 bg-zinc-900/80 border-t border-zinc-800 text-xs space-y-3">
+                      {log && log.units.length > 0 ? (
+                        <div className="space-y-2.5">
+                          {log.units.map((unit) => {
+                            const before = unit.photos.filter((p) => p.type === 'before');
+                            const after = unit.photos.filter((p) => p.type === 'after');
 
-                          <div className="flex justify-end pt-1">
-                            <button
-                              onClick={() => onSelectDate(dateStr)}
-                              className="px-3 py-1 bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 rounded-lg text-xs font-semibold border border-amber-500/20 transition-colors"
-                            >
-                              Open & Edit {dayName} Log
-                            </button>
-                          </div>
-                        </>
-                      ) : (
-                        <div className="text-center py-2">
-                          <p className="text-neutral-400">No work log created for this day.</p>
-                          <button
-                            onClick={() => onSelectDate(dateStr)}
-                            className="mt-2 px-3 py-1 bg-amber-500 text-neutral-950 font-bold rounded-lg text-xs hover:bg-amber-400"
-                          >
-                            Create Log for {dayName}
-                          </button>
+                            return (
+                              <div
+                                key={unit.id}
+                                className="p-3 bg-zinc-950 rounded-xl border border-zinc-800 space-y-2"
+                              >
+                                <div className="flex justify-between items-center font-bold text-white">
+                                  <span>{unit.unitNumber}</span>
+                                  {unit.paintColor && (
+                                    <span className="text-[11px] font-normal text-zinc-400">
+                                      Color: {unit.paintColor}
+                                    </span>
+                                  )}
+                                </div>
+                                {unit.notes && (
+                                  <p className="text-[11px] text-zinc-400">{unit.notes}</p>
+                                )}
+
+                                {/* Before & After Thumbnails */}
+                                {(before.length > 0 || after.length > 0) && (
+                                  <div className="grid grid-cols-2 gap-2 pt-1">
+                                    <div>
+                                      <span className="text-[10px] font-bold text-rose-400 block mb-1">
+                                        Before ({before.length})
+                                      </span>
+                                      <div className="flex gap-1.5 overflow-x-auto pb-1">
+                                        {before.map((p) => (
+                                          <div
+                                            key={p.id}
+                                            onClick={() => onOpenPhotoViewer(p, unit.unitNumber)}
+                                            className="w-14 h-14 rounded-lg overflow-hidden bg-black shrink-0 border border-zinc-800 cursor-pointer"
+                                          >
+                                            <img src={p.dataUrl} alt="" className="w-full h-full object-cover" />
+                                          </div>
+                                        ))}
+                                      </div>
+                                    </div>
+
+                                    <div>
+                                      <span className="text-[10px] font-bold text-emerald-400 block mb-1">
+                                        After ({after.length})
+                                      </span>
+                                      <div className="flex gap-1.5 overflow-x-auto pb-1">
+                                        {after.map((p) => (
+                                          <div
+                                            key={p.id}
+                                            onClick={() => onOpenPhotoViewer(p, unit.unitNumber)}
+                                            className="w-14 h-14 rounded-lg overflow-hidden bg-black shrink-0 border border-zinc-800 cursor-pointer"
+                                          >
+                                            <img src={p.dataUrl} alt="" className="w-full h-full object-cover" />
+                                          </div>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
                         </div>
+                      ) : (
+                        <p className="text-zinc-500 italic text-center py-2">No units recorded for this day.</p>
                       )}
+
+                      <div className="flex justify-end pt-1">
+                        <button
+                          onClick={() => onSelectDate(dateStr)}
+                          className="px-3 py-1 bg-zinc-800 hover:bg-zinc-750 text-zinc-200 rounded-lg text-xs font-semibold border border-zinc-700 transition-colors"
+                        >
+                          Open & Edit {dayName}
+                        </button>
+                      </div>
                     </div>
                   )}
                 </div>
@@ -448,115 +388,47 @@ export const WeeklyReportTab: React.FC<WeeklyReportTabProps> = ({
             })}
           </div>
         </div>
-
-        {/* Weekly Before & After Photos Gallery */}
-        <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-4 space-y-3">
-          <div className="flex items-center justify-between">
-            <h3 className="text-sm font-bold text-neutral-100">
-              Weekly Before / Damage & After Proof ({weekPhotos.length})
-            </h3>
-            <span className="text-xs text-neutral-400">Tap to inspect</span>
-          </div>
-
-          {weekPhotos.length > 0 ? (
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-              {weekPhotos.map((item, idx) => (
-                <div
-                  key={idx}
-                  onClick={() => onOpenPhotoViewer(item.photo)}
-                  className="bg-neutral-950 border border-neutral-800/80 rounded-xl overflow-hidden cursor-pointer group hover:border-amber-500/50 transition-colors"
-                >
-                  <div className="aspect-4/3 bg-neutral-900 overflow-hidden relative">
-                    <img
-                      src={item.photo.dataUrl}
-                      alt={item.photo.caption}
-                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
-                    />
-                    <span
-                      className={`absolute top-1 left-1 text-[9px] font-bold px-1.5 py-0.5 rounded ${
-                        item.photo.category === 'After / Finished'
-                          ? 'bg-emerald-600 text-white'
-                          : item.photo.category === 'Damage / Hole' || item.photo.category === 'Before Repair'
-                          ? 'bg-rose-600 text-white'
-                          : 'bg-black/70 text-amber-300'
-                      }`}
-                    >
-                      {item.photo.category}
-                    </span>
-                  </div>
-                  <div className="p-2">
-                    <p className="text-[11px] font-medium text-neutral-200 truncate">
-                      {item.photo.caption || 'Photo'}
-                    </p>
-                    <p className="text-[9px] text-neutral-500">
-                      {item.date} {item.repair ? `• ${item.repair.unitNumber}` : ''}
-                    </p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="text-center py-6 text-neutral-500 text-xs italic">
-              No photos attached to logs in this week.
-            </div>
-          )}
-        </div>
       </div>
 
       {/* Supervisor Sign-Off Modal */}
       {showSignoffModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
-          <div className="w-full max-w-md bg-neutral-900 border border-neutral-800 rounded-2xl p-5 space-y-4 shadow-2xl">
-            <div className="flex items-center gap-2.5 text-amber-400">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-sm">
+          <div className="w-full max-w-sm bg-zinc-900 border border-zinc-800 rounded-2xl p-5 space-y-4 shadow-2xl">
+            <div className="flex items-center gap-2 text-emerald-400">
               <UserCheck className="w-5 h-5" />
-              <h3 className="text-base font-bold text-white">Supervisor Weekly Sign-Off</h3>
+              <h3 className="text-base font-bold text-white">Supervisor Approval</h3>
             </div>
-            <p className="text-xs text-neutral-400">
-              Sign off on {profile.workerName}'s timesheet ({totalHours.toFixed(1)} total hours, {weekRepairs.length} units repaired) for {dates[0]} to {dates[6]}.
+            <p className="text-xs text-zinc-400">
+              Sign off on {profile.workerName}'s timesheet ({totalHours.toFixed(1)} hrs, {totalUnitsCount} units finished) for {dates[0]} to {dates[6]}.
             </p>
 
             <div>
-              <label className="block text-xs font-semibold text-neutral-300 mb-1">
-                Supervisor Full Name
+              <label className="block text-xs font-semibold text-zinc-300 mb-1">
+                Supervisor Name
               </label>
               <input
                 type="text"
                 value={signerName}
                 onChange={(e) => setSignerName(e.target.value)}
-                className="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-3 py-2 text-sm text-neutral-100 focus:outline-none focus:border-amber-500"
+                className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-sm text-zinc-100 focus:outline-none focus:border-emerald-500"
               />
             </div>
 
-            <div className="p-3 bg-neutral-950 border border-neutral-800/80 rounded-xl text-xs space-y-1">
-              <div className="flex justify-between text-neutral-400">
-                <span>Regular Hours:</span>
-                <span className="font-mono text-white">{totalRegular.toFixed(1)} hrs</span>
-              </div>
-              <div className="flex justify-between text-neutral-400">
-                <span>Overtime Hours:</span>
-                <span className="font-mono text-amber-400 font-bold">{totalOvertime.toFixed(1)} hrs</span>
-              </div>
-              <div className="flex justify-between text-neutral-400">
-                <span>Total Unit Repairs:</span>
-                <span className="font-mono text-white">{weekRepairs.length} repairs</span>
-              </div>
-            </div>
-
-            <div className="flex items-center justify-end gap-2 pt-2 border-t border-neutral-800">
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-zinc-800">
               <button
                 type="button"
                 onClick={() => setShowSignoffModal(false)}
-                className="px-4 py-2 text-xs text-neutral-400 hover:text-white"
+                className="px-4 py-2 text-xs text-zinc-400 hover:text-white"
               >
                 Cancel
               </button>
               <button
                 type="button"
                 onClick={handleApproveWeek}
-                className="px-5 py-2 bg-emerald-500 hover:bg-emerald-400 text-neutral-950 font-bold text-xs rounded-xl shadow-md flex items-center gap-1.5 transition-colors"
+                className="px-4 py-2 bg-emerald-500 hover:bg-emerald-400 text-zinc-950 font-bold text-xs rounded-xl shadow-md flex items-center gap-1.5 transition-colors"
               >
                 <Check className="w-4 h-4" />
-                Approve & Stamp Report
+                Approve Week
               </button>
             </div>
           </div>

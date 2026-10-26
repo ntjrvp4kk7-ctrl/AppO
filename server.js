@@ -1,4 +1,4 @@
-import express, { Request, Response, NextFunction } from 'express';
+import express from 'express';
 import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
@@ -10,11 +10,11 @@ const app = express();
 const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
 const isProduction = process.env.NODE_ENV === 'production';
 
-// Support base64 photos upload (up to 50MB payload)
+// Support base64 before/after photos payload
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
-// Persistent File Storage (for Render.com & local sessions)
+// Storage directory & database file for Render.com persistence
 const DATA_DIR = path.join(__dirname, 'data');
 const DB_FILE = path.join(DATA_DIR, 'db.json');
 
@@ -22,48 +22,30 @@ if (!fs.existsSync(DATA_DIR)) {
   fs.mkdirSync(DATA_DIR, { recursive: true });
 }
 
-interface UserRecord {
-  id: string;
-  email: string;
-  passwordHash: string;
-  workerName: string;
-  bossName: string;
-  bossEmail: string;
-  companyName: string;
-  createdAt: string;
-}
-
-interface DatabaseSchema {
-  users: UserRecord[];
-  sessions: { [token: string]: string }; // token -> userId
-  logs: { [userId: string]: any[] }; // userId -> DailyWorkLog[]
-}
-
-function loadDatabase(): DatabaseSchema {
+function loadDatabase() {
   try {
     if (fs.existsSync(DB_FILE)) {
       const data = fs.readFileSync(DB_FILE, 'utf-8');
       return JSON.parse(data);
     }
   } catch (err) {
-    console.error('Error loading db.json, initializing fresh store', err);
+    console.error('Error loading db.json, creating initial store', err);
   }
   return { users: [], sessions: {}, logs: {} };
 }
 
-function saveDatabase(db: DatabaseSchema) {
+function saveDatabase(db) {
   try {
     fs.writeFileSync(DB_FILE, JSON.stringify(db, null, 2), 'utf-8');
   } catch (err) {
-    console.error('Error writing to db.json', err);
+    console.error('Error saving db.json', err);
   }
 }
 
-// In-memory cache synced with disk
 let database = loadDatabase();
 
 // Auth Middleware
-function authMiddleware(req: Request, res: Response, next: NextFunction) {
+function authMiddleware(req, res, next) {
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
     return res.status(401).json({ error: 'Unauthorized. Please sign in.' });
@@ -77,18 +59,18 @@ function authMiddleware(req: Request, res: Response, next: NextFunction) {
   if (!user) {
     return res.status(401).json({ error: 'User not found.' });
   }
-  (req as any).user = user;
-  (req as any).userId = userId;
+  req.user = user;
+  req.userId = userId;
   next();
 }
 
 // --- API Endpoints ---
 
 // Register
-app.post('/api/auth/register', (req: Request, res: Response) => {
-  const { email, password, workerName, bossName, bossEmail, companyName } = req.body;
+app.post('/api/auth/register', (req, res) => {
+  const { email, password, workerName, bossName, bossEmail } = req.body;
   if (!email || !password || !workerName) {
-    return res.status(400).json({ error: 'Email, password, and technician name are required.' });
+    return res.status(400).json({ error: 'Email, password, and your name are required.' });
   }
 
   const normalizedEmail = email.trim().toLowerCase();
@@ -97,14 +79,13 @@ app.post('/api/auth/register', (req: Request, res: Response) => {
     return res.status(400).json({ error: 'An account with this email already exists.' });
   }
 
-  const newUser: UserRecord = {
+  const newUser = {
     id: `user-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`,
     email: normalizedEmail,
-    passwordHash: password, // Simple auth suitable for this applet
+    passwordHash: password,
     workerName: workerName.trim(),
     bossName: (bossName || 'My Boss').trim(),
     bossEmail: (bossEmail || '').trim(),
-    companyName: (companyName || 'Drywall & Paint Pro Services').trim(),
     createdAt: new Date().toISOString(),
   };
 
@@ -119,7 +100,7 @@ app.post('/api/auth/register', (req: Request, res: Response) => {
 });
 
 // Login
-app.post('/api/auth/login', (req: Request, res: Response) => {
+app.post('/api/auth/login', (req, res) => {
   const { email, password } = req.body;
   if (!email || !password) {
     return res.status(400).json({ error: 'Email and password are required.' });
@@ -142,17 +123,16 @@ app.post('/api/auth/login', (req: Request, res: Response) => {
   res.json({ token, user: safeUser });
 });
 
-// Get Current User Profile
-app.get('/api/auth/me', authMiddleware, (req: Request, res: Response) => {
-  const user = (req as any).user;
-  const { passwordHash: _, ...safeUser } = user;
+// Current User Profile
+app.get('/api/auth/me', authMiddleware, (req, res) => {
+  const { passwordHash: _, ...safeUser } = req.user;
   res.json({ user: safeUser });
 });
 
 // Update Profile
-app.put('/api/auth/profile', authMiddleware, (req: Request, res: Response) => {
-  const userId = (req as any).userId;
-  const { workerName, bossName, bossEmail, companyName } = req.body;
+app.put('/api/auth/profile', authMiddleware, (req, res) => {
+  const userId = req.userId;
+  const { workerName, bossName, bossEmail } = req.body;
 
   const userIndex = database.users.findIndex((u) => u.id === userId);
   if (userIndex === -1) {
@@ -162,7 +142,6 @@ app.put('/api/auth/profile', authMiddleware, (req: Request, res: Response) => {
   if (workerName) database.users[userIndex].workerName = workerName.trim();
   if (bossName) database.users[userIndex].bossName = bossName.trim();
   if (bossEmail !== undefined) database.users[userIndex].bossEmail = bossEmail.trim();
-  if (companyName) database.users[userIndex].companyName = companyName.trim();
 
   saveDatabase(database);
   const { passwordHash: _, ...safeUser } = database.users[userIndex];
@@ -170,7 +149,7 @@ app.put('/api/auth/profile', authMiddleware, (req: Request, res: Response) => {
 });
 
 // Logout
-app.post('/api/auth/logout', (req: Request, res: Response) => {
+app.post('/api/auth/logout', (req, res) => {
   const authHeader = req.headers.authorization;
   if (authHeader && authHeader.startsWith('Bearer ')) {
     const token = authHeader.split(' ')[1];
@@ -180,16 +159,16 @@ app.post('/api/auth/logout', (req: Request, res: Response) => {
   res.json({ success: true });
 });
 
-// Get Work Logs for current user
-app.get('/api/worklogs', authMiddleware, (req: Request, res: Response) => {
-  const userId = (req as any).userId;
+// Get Work Logs for user
+app.get('/api/worklogs', authMiddleware, (req, res) => {
+  const userId = req.userId;
   const userLogs = database.logs[userId] || [];
   res.json({ logs: userLogs });
 });
 
-// Sync / Save Work Logs for current user
-app.post('/api/worklogs', authMiddleware, (req: Request, res: Response) => {
-  const userId = (req as any).userId;
+// Save Work Logs for user
+app.post('/api/worklogs', authMiddleware, (req, res) => {
+  const userId = req.userId;
   const { logs } = req.body;
   if (!Array.isArray(logs)) {
     return res.status(400).json({ error: 'logs must be an array.' });
@@ -200,12 +179,12 @@ app.post('/api/worklogs', authMiddleware, (req: Request, res: Response) => {
   res.json({ success: true, count: logs.length });
 });
 
-// Health check endpoint for Render.com
-app.get('/api/health', (_req: Request, res: Response) => {
-  res.json({ status: 'ok', service: 'Paint & Drywall Work Log', timestamp: new Date().toISOString() });
+// Health check for Render.com
+app.get('/api/health', (_req, res) => {
+  res.json({ status: 'ok', service: 'Paint & Patch Field Log', timestamp: new Date().toISOString() });
 });
 
-// Setup dev server with Vite or production static files
+// Start Server: In development uses Vite middleware; in production serves static dist
 async function startServer() {
   if (!isProduction) {
     const { createServer: createViteServer } = await import('vite');
@@ -217,13 +196,13 @@ async function startServer() {
   } else {
     const distPath = path.join(__dirname, 'dist');
     app.use(express.static(distPath));
-    app.get('*', (_req: Request, res: Response) => {
+    app.get('*', (_req, res) => {
       res.sendFile(path.join(distPath, 'index.html'));
     });
   }
 
   app.listen(PORT, '0.0.0.0', () => {
-    console.log(`FieldLog Paint & Drywall Server listening on http://0.0.0.0:${PORT}`);
+    console.log(`Server listening on port ${PORT} (production: ${isProduction})`);
   });
 }
 
