@@ -16,11 +16,14 @@ import { DailyWorkLog, UserAccount, UnitPhoto } from '../types/worklog';
 import { getWeekRange, shiftWeek, formatShortDate } from '../utils/dateUtils';
 import { generateBossEmailContent } from '../utils/storage';
 import { WeeklyPrintView } from './WeeklyPrintView';
+import { ReportPreviewModal } from './ReportPreviewModal';
 
 interface WeeklyReportTabProps {
   currentDate: string;
   logs: DailyWorkLog[];
   profile: UserAccount;
+  selectedWeekStart?: string;
+  onWeekChange?: (weekStart: string) => void;
   onSelectDate: (dateStr: string) => void;
   onOpenPhotoViewer: (photo: UnitPhoto, unitLabel: string) => void;
   onSaveLogs: (logs: DailyWorkLog[]) => void;
@@ -30,17 +33,26 @@ export const WeeklyReportTab: React.FC<WeeklyReportTabProps> = ({
   currentDate,
   logs,
   profile,
+  selectedWeekStart,
+  onWeekChange,
   onSelectDate,
   onOpenPhotoViewer,
   onSaveLogs,
 }) => {
-  const [weekStart, setWeekStart] = useState<string>(() => {
-    return getWeekRange(currentDate || new Date()).start;
+  const [internalWeekStart, setInternalWeekStart] = useState<string>(() => {
+    return selectedWeekStart || getWeekRange(currentDate || new Date()).start;
   });
+
+  const weekStart = selectedWeekStart || internalWeekStart;
+  const setWeekStart = (w: string) => {
+    setInternalWeekStart(w);
+    if (onWeekChange) onWeekChange(w);
+  };
 
   const [expandedDay, setExpandedDay] = useState<string | null>(null);
   const [copiedText, setCopiedText] = useState(false);
   const [showSignoffModal, setShowSignoffModal] = useState(false);
+  const [showPreviewModal, setShowPreviewModal] = useState(false);
   const [signerName, setSignerName] = useState(profile.bossName);
 
   const weekRange = getWeekRange(weekStart);
@@ -111,21 +123,6 @@ export const WeeklyReportTab: React.FC<WeeklyReportTabProps> = ({
 
   return (
     <div className="space-y-4">
-      {/* Printable Report View (Visible only during window.print) */}
-      <WeeklyPrintView
-        dates={dates}
-        logs={logs}
-        profile={profile}
-        supervisorSignature={
-          isWeekApproved
-            ? {
-                signedBy: signerName || profile.bossName,
-                signedAt: new Date().toISOString(),
-              }
-            : undefined
-        }
-      />
-
       <div className="no-print space-y-4">
         {/* Week Selector Bar */}
         <div className="bg-zinc-900/90 border border-zinc-800 rounded-2xl p-3.5 flex items-center justify-between">
@@ -228,10 +225,10 @@ export const WeeklyReportTab: React.FC<WeeklyReportTabProps> = ({
             </button>
 
             <button
-              onClick={handlePrint}
+              onClick={() => setShowPreviewModal(true)}
               className="py-2.5 px-3 bg-zinc-800 hover:bg-zinc-750 text-zinc-200 border border-zinc-700/80 font-bold rounded-xl text-xs active:scale-95 transition-all flex items-center justify-center gap-1.5"
             >
-              <Printer className="w-4 h-4" />
+              <Printer className="w-4 h-4 text-emerald-400" />
               <span>Print / PDF</span>
             </button>
 
@@ -434,6 +431,29 @@ export const WeeklyReportTab: React.FC<WeeklyReportTabProps> = ({
           </div>
         </div>
       )}
+
+      {/* Report Preview & Scroll Modal */}
+      <ReportPreviewModal
+        isOpen={showPreviewModal}
+        dates={dates}
+        logs={logs}
+        profile={profile}
+        supervisorSignature={
+          isWeekApproved
+            ? {
+                signedBy: signerName || profile.bossName,
+                signedAt: new Date().toISOString(),
+              }
+            : undefined
+        }
+        onClose={() => setShowPreviewModal(false)}
+        onPrint={() => {
+          setShowPreviewModal(false);
+          setTimeout(() => {
+            window.print();
+          }, 150);
+        }}
+      />
     </div>
   );
 };

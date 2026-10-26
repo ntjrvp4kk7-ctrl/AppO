@@ -25,22 +25,74 @@
   border-radius: 9999px;
 }
 
-/* Print stylesheet for boss report */
+/* Bulletproof Multi-Page Print Stylesheet for Boss Report */
 @media print {
-  body {
+  @page {
+    size: letter portrait;
+    margin: 10mm 12mm 12mm 12mm;
+  }
+
+  /* Reset all scrolling/clipping constraints */
+  html, body, #root {
     background-color: #ffffff !important;
     color: #0f172a !important;
+    height: auto !important;
+    min-height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+    position: static !important;
+    display: block !important;
+    margin: 0 !important;
+    padding: 0 !important;
   }
-  .no-print {
+
+  /* Hide entire interactive app UI in print */
+  .no-print,
+  #app-interactive-shell,
+  header,
+  nav,
+  button,
+  .mobile-notch,
+  .mobile-frame-border {
     display: none !important;
   }
-  .print-only {
+
+  /* Show the dedicated print document */
+  .print-document {
     display: block !important;
+    background: #ffffff !important;
+    color: #0f172a !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: visible !important;
   }
-  .print-card {
-    page-break-inside: avoid;
-    break-inside: avoid;
-    border: 1px solid #e2e8f0 !important;
-    box-shadow: none !important;
+
+  /* PAGE 1: The Time & Signatures */
+  .pdf-page-1 {
+    page-break-after: always !important;
+    break-after: page !important;
+    min-height: 92vh;
+    display: flex !important;
+    flex-direction: column !important;
+    justify-content: space-between !important;
+    padding: 10px 0 20px 0 !important;
+  }
+
+  /* PAGE 2+: Pictures & Units Listed */
+  .pdf-page-2 {
+    page-break-before: always !important;
+    break-before: page !important;
+    padding-top: 15px !important;
+  }
+
+  .print-unit-card {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+    margin-bottom: 20px !important;
+    border: 1px solid #cbd5e1 !important;
+    border-radius: 8px !important;
+    background: #ffffff !important;
   }
 }

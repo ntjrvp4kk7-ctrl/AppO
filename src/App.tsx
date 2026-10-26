@@ -28,11 +28,12 @@ import {
   fetchLogsFromServer,
   generateSampleLogs,
 } from './utils/storage';
-import { formatDisplayDate, getTodayISODate } from './utils/dateUtils';
+import { formatDisplayDate, getTodayISODate, getWeekRange } from './utils/dateUtils';
 
 import { TimeSectionEditor } from './components/TimeSectionEditor';
 import { UnitWorkCard } from './components/UnitWorkCard';
 import { WeeklyReportTab } from './components/WeeklyReportTab';
+import { WeeklyPrintView } from './components/WeeklyPrintView';
 import { PhotoViewerModal } from './components/PhotoViewerModal';
 import { SettingsModal } from './components/SettingsModal';
 import { AuthModal } from './components/AuthModal';
@@ -45,6 +46,9 @@ export default function App() {
 
   const [logs, setLogs] = useState<DailyWorkLog[]>(() => getStoredLogs());
   const [currentDate, setCurrentDate] = useState<string>(() => getTodayISODate());
+  const [selectedWeekStart, setSelectedWeekStart] = useState<string>(() => {
+    return getWeekRange(getTodayISODate()).start;
+  });
   const [activeTab, setActiveTab] = useState<ActiveTab>('today');
   const [isMobileFrameView, setIsMobileFrameView] = useState<boolean>(true);
 
@@ -412,6 +416,8 @@ export default function App() {
                 currentDate={currentDate}
                 logs={logs}
                 profile={auth.user}
+                selectedWeekStart={selectedWeekStart}
+                onWeekChange={setSelectedWeekStart}
                 onSelectDate={(dateStr) => {
                   setCurrentDate(dateStr);
                   setActiveTab('today');
@@ -467,25 +473,37 @@ export default function App() {
     );
   };
 
+  const activeWeek = getWeekRange(selectedWeekStart || currentDate || new Date());
+
   return (
     <div className="min-h-screen bg-zinc-950 flex items-center justify-center font-sans antialiased">
-      {isMobileFrameView ? (
-        <div className="w-full max-w-md h-[100dvh] sm:h-[860px] sm:max-h-[92vh] sm:border-[10px] sm:border-zinc-850 sm:rounded-[44px] overflow-hidden shadow-2xl relative flex flex-col bg-zinc-950 sm:ring-1 sm:ring-zinc-800">
-          <div className="hidden sm:block absolute top-0 inset-x-0 h-5 z-40 pointer-events-none">
-            <div className="w-28 h-4 bg-zinc-850 mx-auto rounded-b-xl flex items-center justify-center">
-              <div className="w-3 h-3 rounded-full bg-zinc-950"></div>
+      {/* Root Multi-page Print View for Boss (only visible when window.print() is fired) */}
+      <WeeklyPrintView
+        dates={activeWeek.dates}
+        logs={logs}
+        profile={auth.user}
+      />
+
+      {/* Interactive App Shell (strictly hidden in print to prevent overlay) */}
+      <div id="app-interactive-shell" className="no-print w-full flex items-center justify-center">
+        {isMobileFrameView ? (
+          <div className="w-full max-w-md h-[100dvh] sm:h-[860px] sm:max-h-[92vh] sm:border-[10px] sm:border-zinc-850 sm:rounded-[44px] overflow-hidden shadow-2xl relative flex flex-col bg-zinc-950 sm:ring-1 sm:ring-zinc-800">
+            <div className="hidden sm:block absolute top-0 inset-x-0 h-5 z-40 pointer-events-none">
+              <div className="w-28 h-4 bg-zinc-850 mx-auto rounded-b-xl flex items-center justify-center">
+                <div className="w-3 h-3 rounded-full bg-zinc-950"></div>
+              </div>
+            </div>
+
+            <div className="flex-1 flex flex-col overflow-hidden relative">
+              {renderAppContent()}
             </div>
           </div>
-
-          <div className="flex-1 flex flex-col overflow-hidden relative">
+        ) : (
+          <div className="w-full max-w-4xl min-h-screen mx-auto flex flex-col border-x border-zinc-800 bg-zinc-950">
             {renderAppContent()}
           </div>
-        </div>
-      ) : (
-        <div className="w-full max-w-4xl min-h-screen mx-auto flex flex-col border-x border-zinc-800 bg-zinc-950">
-          {renderAppContent()}
-        </div>
-      )}
+        )}
+      </div>
 
       {/* Photo Viewer Modal */}
       <PhotoViewerModal
