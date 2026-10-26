@@ -80,11 +80,13 @@
     padding: 10px 0 20px 0 !important;
   }
 
-  /* PAGE 2+: Pictures & Units Listed */
-  .pdf-page-2 {
+  /* PAGE 2+: Dedicated Unit Pages (1 page per unit) */
+  .pdf-page-2,
+  .pdf-unit-page {
     page-break-before: always !important;
     break-before: page !important;
     padding-top: 15px !important;
+    min-height: 90vh;
   }
 
   .print-unit-card {

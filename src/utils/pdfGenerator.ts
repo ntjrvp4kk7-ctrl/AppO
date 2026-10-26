@@ -1,41 +1,54 @@
 import { jsPDF } from 'jspdf';
-import { DailyWorkLog, UserAccount, UnitWork } from '../types/worklog';
+import { DailyWorkLog, UserAccount, UnitWork, UnitPhoto } from '../types/worklog';
 
 /**
- * Safely converts any image source (relative URL, blob URL, webp, png)
- * into a reliable JPEG base64 string for jsPDF embedding.
+ * Safely converts any image source into a valid JPEG base64 data URL
+ * compatible with jsPDF embedding.
  */
-async function prepareImageForPdf(url: string): Promise<string | null> {
+async function ensureJpegBase64(url: string): Promise<string | null> {
   if (!url) return null;
-  if (url.startsWith('data:image/jpeg') || url.startsWith('data:image/png')) {
+
+  // Already a JPEG base64
+  if (url.startsWith('data:image/jpeg;base64,') || url.startsWith('data:image/jpg;base64,')) {
+    return url;
+  }
+  // Already a PNG base64
+  if (url.startsWith('data:image/png;base64,')) {
     return url;
   }
 
+  // Convert via HTML5 Canvas
   return new Promise((resolve) => {
-    const img = new Image();
-    img.crossOrigin = 'anonymous';
-    img.onload = () => {
-      try {
-        const canvas = document.createElement('canvas');
-        canvas.width = img.naturalWidth || 640;
-        canvas.height = img.naturalHeight || 480;
-        const ctx = canvas.getContext('2d');
-        if (!ctx) {
-          resolve(url);
-          return;
+    try {
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.onload = () => {
+        try {
+          const canvas = document.createElement('canvas');
+          canvas.width = img.naturalWidth || 640;
+          canvas.height = img.naturalHeight || 480;
+          const ctx = canvas.getContext('2d');
+          if (!ctx) {
+            resolve(null);
+            return;
+          }
+          ctx.fillStyle = '#ffffff';
+          ctx.fillRect(0, 0, canvas.width, canvas.height);
+          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+          resolve(canvas.toDataURL('image/jpeg', 0.86));
+        } catch (e) {
+          console.warn('Canvas conversion failed:', e);
+          resolve(null);
         }
-        ctx.fillStyle = '#ffffff';
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-        resolve(canvas.toDataURL('image/jpeg', 0.82));
-      } catch {
-        resolve(url);
-      }
-    };
-    img.onerror = () => {
+      };
+      img.onerror = () => {
+        console.warn('Image load error for PDF:', url.slice(0, 40));
+        resolve(null);
+      };
+      img.src = url;
+    } catch {
       resolve(null);
-    };
-    img.src = url;
+    }
   });
 }
 
@@ -49,15 +62,21 @@ export interface PdfExportOptions {
   };
 }
 
+interface UnitWithDate {
+  date: string;
+  dayName: string;
+  unit: UnitWork;
+}
+
 /**
  * Generates the official multi-page PDF report:
- * - PAGE 1: The time breakdown (hours, in/out, lunch, regular/overtime, signatures)
- * - PAGE 2+: Pictures & units listed with clearly labeled [BEFORE · DAMAGE] and [AFTER · PAINTED]
+ * - PAGE 1: 1 page dedicated to the hours worked, clock in/out, lunch, and signatures
+ * - PAGE 2+: 1 FULL PAGE PER UNIT DAY that includes large before and after pictures!
  */
 export async function generateWeeklyReportPdf(options: PdfExportOptions): Promise<jsPDF> {
   const { dates, logs, profile, supervisorSignature } = options;
 
-  // Letter size: 215.9 x 279.4 mm
+  // Standard Letter dimensions: 215.9 x 279.4 mm
   const doc = new jsPDF({
     orientation: 'portrait',
     unit: 'mm',
@@ -72,39 +91,55 @@ export async function generateWeeklyReportPdf(options: PdfExportOptions): Promis
   let totalHours = 0;
   let totalRegular = 0;
   let totalOvertime = 0;
-  const allUnitsWithDate: { date: string; unit: UnitWork }[] = [];
+  const unitList: UnitWithDate[] = [];
 
+  // Gather all units and hours for the week
   dates.forEach((dateStr) => {
-    const log = logs.find((l) => l.date === dateStr);
+    // Match date string leniently (YYYY-MM-DD)
+    const log = logs.find((l) => l.date && l.date.slice(0, 10) === dateStr.slice(0, 10));
     if (log) {
-      totalHours += log.time.totalHours;
-      totalRegular += Math.min(8, log.time.totalHours);
-      totalOvertime += log.time.overtimeHours;
-      log.units.forEach((u) => {
-        allUnitsWithDate.push({ date: dateStr, unit: u });
-      });
+      totalHours += log.time?.totalHours || 0;
+      totalRegular += Math.min(8, log.time?.totalHours || 0);
+      totalOvertime += log.time?.overtimeHours || 0;
+
+      if (Array.isArray(log.units)) {
+        const [y, m, d] = dateStr.split('-').map(Number);
+        const dayObj = new Date(y, m - 1, d);
+        const dayName = dayObj.toLocaleDateString('en-US', {
+          weekday: 'long',
+          month: 'short',
+          day: 'numeric',
+        });
+
+        log.units.forEach((u) => {
+          unitList.push({ date: dateStr, dayName, unit: u });
+        });
+      }
     }
   });
 
-  // Pre-load all photo images in parallel to avoid layout blocking
-  const preparedPhotosMap = new Map<string, string | null>();
-  const photoPromises: Promise<void>[] = [];
+  // Calculate total pages: Page 1 for hours + 1 page per unit (or 1 extra page if no units)
+  const totalPages = unitList.length > 0 ? 1 + unitList.length : 2;
 
-  for (const item of allUnitsWithDate) {
+  // Pre-convert all photos to clean JPEG base64 before drawing
+  const preparedPhotos = new Map<string, string | null>();
+  const convertPromises: Promise<void>[] = [];
+
+  for (const item of unitList) {
     for (const p of item.unit.photos) {
-      if (!preparedPhotosMap.has(p.id)) {
-        photoPromises.push(
-          prepareImageForPdf(p.dataUrl).then((converted) => {
-            preparedPhotosMap.set(p.id, converted);
+      if (!preparedPhotos.has(p.id)) {
+        convertPromises.push(
+          ensureJpegBase64(p.dataUrl).then((base64) => {
+            preparedPhotos.set(p.id, base64);
           })
         );
       }
     }
   }
-  await Promise.all(photoPromises);
+  await Promise.all(convertPromises);
 
   // =========================================================================
-  // PAGE 1: THE TIME (HOURS & TIMESHEET + SIGNATURES)
+  // PAGE 1: 1 DEDICATED PAGE FOR THE HOURS & SIGNATURES
   // =========================================================================
 
   // Top Accent Bar
@@ -117,8 +152,8 @@ export async function generateWeeklyReportPdf(options: PdfExportOptions): Promis
   doc.roundedRect(marginX, 18, 56, 6, 1.5, 1.5, 'FD');
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(7.5);
-  doc.setTextColor(5, 150, 105); // emerald-600
-  doc.text('PAGE 1 OF 2 · WEEKLY HOURS', marginX + 3, 22.2);
+  doc.setTextColor(5, 150, 105);
+  doc.text(`PAGE 1 OF ${totalPages} · WEEKLY HOURS`, marginX + 3, 22.2);
 
   // Document Title
   doc.setFont('helvetica', 'bold');
@@ -130,9 +165,9 @@ export async function generateWeeklyReportPdf(options: PdfExportOptions): Promis
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(8.5);
   doc.setTextColor(100, 116, 139); // slate-500
-  doc.text('Paint & Drywall Repairs • Daily Timesheet & Finished Units', marginX, 36);
+  doc.text('Paint & Drywall Repairs • Daily Hours & Completed Units', marginX, 36);
 
-  // Worker & Supervisor Block (Left)
+  // Technician & Supervisor info
   doc.setFontSize(9);
   doc.setTextColor(51, 65, 85);
   doc.text(`Technician: `, marginX, 42);
@@ -148,27 +183,32 @@ export async function generateWeeklyReportPdf(options: PdfExportOptions): Promis
   doc.text(profile.bossName || 'Supervisor', marginX + 20, 47);
 
   // Work Week Range Box (Right)
-  const rightBoxX = marginX + contentWidth - 62;
+  const rightBoxX = marginX + contentWidth - 64;
   doc.setFillColor(248, 250, 252);
   doc.setDrawColor(226, 232, 240);
-  doc.roundedRect(rightBoxX, 22, 62, 25, 2, 2, 'FD');
+  doc.roundedRect(rightBoxX, 20, 64, 28, 2, 2, 'FD');
 
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(7.5);
   doc.setTextColor(100, 116, 139);
-  doc.text('WORK WEEK PERIOD', rightBoxX + 6, 28);
+  doc.text('WORK WEEK PERIOD', rightBoxX + 6, 26);
 
   doc.setFontSize(9.5);
   doc.setTextColor(15, 23, 42);
-  doc.text(`${dates[0]} to ${dates[6]}`, rightBoxX + 6, 34);
+  doc.text(`${dates[0]} to ${dates[6]}`, rightBoxX + 6, 32);
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(8);
+  doc.setTextColor(5, 150, 105);
+  doc.text(`Total Units Finished: ${unitList.length}`, rightBoxX + 6, 39);
 
   doc.setFont('helvetica', 'normal');
-  doc.setFontSize(7.5);
-  doc.setTextColor(5, 150, 105);
-  doc.text(`Total Units Logged: ${allUnitsWithDate.length}`, rightBoxX + 6, 41);
+  doc.setFontSize(7);
+  doc.setTextColor(100, 116, 139);
+  doc.text(`(1 full page per unit attached)`, rightBoxX + 6, 44);
 
-  // Section 1 Header
-  let currentY = 56;
+  // Section 1: Timesheet Table
+  let currentY = 54;
   doc.setDrawColor(15, 23, 42);
   doc.setLineWidth(0.6);
   doc.line(marginX, currentY, marginX + contentWidth, currentY);
@@ -182,26 +222,25 @@ export async function generateWeeklyReportPdf(options: PdfExportOptions): Promis
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(8);
   doc.setTextColor(100, 116, 139);
-  doc.text('Daily clock in/out, 30m lunch deductions & verified units', marginX + 80, currentY);
+  doc.text('Daily clock in/out, 30m lunch break deductions & verified hours', marginX + 78, currentY);
 
-  // Timesheet Table
   currentY += 4;
   const colX = {
     date: marginX,
     dateW: 42,
     in: marginX + 42,
-    inW: 27,
-    out: marginX + 69,
-    outW: 27,
-    lunch: marginX + 96,
-    lunchW: 25,
-    units: marginX + 121,
+    inW: 26,
+    out: marginX + 68,
+    outW: 26,
+    lunch: marginX + 94,
+    lunchW: 24,
+    units: marginX + 118,
     unitsW: 36,
-    hours: marginX + 157,
-    hoursW: contentWidth - 157,
+    hours: marginX + 154,
+    hoursW: contentWidth - 154,
   };
 
-  // Table Header Row
+  // Table Header
   doc.setFillColor(241, 245, 249);
   doc.setDrawColor(203, 213, 225);
   doc.setLineWidth(0.3);
@@ -221,58 +260,59 @@ export async function generateWeeklyReportPdf(options: PdfExportOptions): Promis
 
   // Table Body Rows (7 Days)
   dates.forEach((dateStr, idx) => {
-    const log = logs.find((l) => l.date === dateStr);
-    const day = new Date(dateStr + 'T12:00:00').toLocaleDateString('en-US', {
+    const log = logs.find((l) => l.date && l.date.slice(0, 10) === dateStr.slice(0, 10));
+    const [y, m, d] = dateStr.split('-').map(Number);
+    const dayObj = new Date(y, m - 1, d);
+    const day = dayObj.toLocaleDateString('en-US', {
       weekday: 'short',
       month: 'short',
       day: 'numeric',
     });
 
-    // Alternating row background
     if (idx % 2 === 1) {
       doc.setFillColor(248, 250, 252);
     } else {
       doc.setFillColor(255, 255, 255);
     }
     doc.setDrawColor(226, 232, 240);
-    doc.rect(marginX, currentY, contentWidth, 8, 'FD');
+    doc.rect(marginX, currentY, contentWidth, 8.5, 'FD');
 
     if (!log) {
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(8);
-      doc.setTextColor(148, 163, 184); // slate-400
-      doc.text(day, colX.date + 3, currentY + 5.2);
+      doc.setTextColor(148, 163, 184);
+      doc.text(day, colX.date + 3, currentY + 5.5);
       doc.setFont('helvetica', 'italic');
-      doc.text('Off Duty / No Shift', colX.in + 20, currentY + 5.2);
+      doc.text('Off Duty / No Shift', colX.in + 20, currentY + 5.5);
       doc.setFont('helvetica', 'normal');
-      doc.text('0.0 hrs', marginX + contentWidth - 3, currentY + 5.2, { align: 'right' });
+      doc.text('0.0 hrs', marginX + contentWidth - 3, currentY + 5.5, { align: 'right' });
     } else {
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(8);
       doc.setTextColor(15, 23, 42);
-      doc.text(day, colX.date + 3, currentY + 5.2);
+      doc.text(day, colX.date + 3, currentY + 5.5);
 
       doc.setFont('helvetica', 'normal');
       doc.setTextColor(51, 65, 85);
-      doc.text(log.time.startTime || '--:--', colX.in + colX.inW / 2, currentY + 5.2, { align: 'center' });
-      doc.text(log.time.endTime || '--:--', colX.out + colX.outW / 2, currentY + 5.2, { align: 'center' });
-      doc.text(`${log.time.lunchDeductionMinutes}m`, colX.lunch + colX.lunchW / 2, currentY + 5.2, { align: 'center' });
+      doc.text(log.time?.startTime || '--:--', colX.in + colX.inW / 2, currentY + 5.5, { align: 'center' });
+      doc.text(log.time?.endTime || '--:--', colX.out + colX.outW / 2, currentY + 5.5, { align: 'center' });
+      doc.text(`${log.time?.lunchDeductionMinutes || 30}m`, colX.lunch + colX.lunchW / 2, currentY + 5.5, { align: 'center' });
 
       doc.setFont('helvetica', 'bold');
       doc.setTextColor(15, 23, 42);
-      const unitText = `${log.units.length} unit${log.units.length === 1 ? '' : 's'}`;
-      doc.text(unitText, colX.units + colX.unitsW / 2, currentY + 5.2, { align: 'center' });
+      const unitCount = log.units?.length || 0;
+      doc.text(`${unitCount} unit${unitCount === 1 ? '' : 's'}`, colX.units + colX.unitsW / 2, currentY + 5.5, { align: 'center' });
 
       doc.setFontSize(8.5);
       doc.setTextColor(5, 150, 105);
-      doc.text(`${log.time.totalHours.toFixed(1)} hrs`, marginX + contentWidth - 3, currentY + 5.2, { align: 'right' });
+      doc.text(`${(log.time?.totalHours || 0).toFixed(1)} hrs`, marginX + contentWidth - 3, currentY + 5.5, { align: 'right' });
     }
 
-    currentY += 8;
+    currentY += 8.5;
   });
 
-  // Table Footer Total Row
-  doc.setFillColor(226, 232, 240); // slate-200
+  // Total Hours Row
+  doc.setFillColor(226, 232, 240);
   doc.setDrawColor(148, 163, 184);
   doc.setLineWidth(0.4);
   doc.rect(marginX, currentY, contentWidth, 10, 'FD');
@@ -284,7 +324,7 @@ export async function generateWeeklyReportPdf(options: PdfExportOptions): Promis
 
   doc.setFontSize(8.5);
   doc.setTextColor(51, 65, 85);
-  doc.text(`${allUnitsWithDate.length} Units Finished`, colX.units + colX.unitsW / 2, currentY + 6.5, { align: 'center' });
+  doc.text(`${unitList.length} Total Units Finished`, colX.units + colX.unitsW / 2, currentY + 6.5, { align: 'center' });
 
   doc.setFontSize(11);
   doc.setTextColor(15, 23, 42);
@@ -292,10 +332,10 @@ export async function generateWeeklyReportPdf(options: PdfExportOptions): Promis
 
   currentY += 16;
 
-  // 3 Mini Summary KPI Cards
+  // 3 Mini KPI Summary Cards
   const cardW = (contentWidth - 8) / 3;
 
-  // Regular Hours Card
+  // Regular Hours
   doc.setFillColor(248, 250, 252);
   doc.setDrawColor(226, 232, 240);
   doc.roundedRect(marginX, currentY, cardW, 18, 2, 2, 'FD');
@@ -308,7 +348,7 @@ export async function generateWeeklyReportPdf(options: PdfExportOptions): Promis
   doc.setTextColor(15, 23, 42);
   doc.text(`${totalRegular.toFixed(1)} hrs`, marginX + cardW / 2, currentY + 13, { align: 'center' });
 
-  // Overtime Hours Card
+  // Overtime Hours
   const card2X = marginX + cardW + 4;
   doc.setFillColor(248, 250, 252);
   doc.roundedRect(card2X, currentY, cardW, 18, 2, 2, 'FD');
@@ -321,27 +361,23 @@ export async function generateWeeklyReportPdf(options: PdfExportOptions): Promis
   doc.setTextColor(totalOvertime > 0 ? 180 : 15, totalOvertime > 0 ? 83 : 23, totalOvertime > 0 ? 9 : 42);
   doc.text(`${totalOvertime.toFixed(1)} hrs`, card2X + cardW / 2, currentY + 13, { align: 'center' });
 
-  // Total Units Card
+  // Total Units Finished
   const card3X = marginX + (cardW + 4) * 2;
   doc.setFillColor(236, 253, 245);
   doc.setDrawColor(167, 243, 208);
-  doc.roundedRect(card33(card3X), currentY, cardW, 18, 2, 2, 'FD');
+  doc.roundedRect(card3X, currentY, cardW, 18, 2, 2, 'FD');
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(7.5);
   doc.setTextColor(5, 150, 105);
-  doc.text('UNITS PATCHED & PAINTED', card3X + cardW / 2, currentY + 5.5, { align: 'center' });
+  doc.text('UNITS FINISHED', card3X + cardW / 2, currentY + 5.5, { align: 'center' });
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(12);
   doc.setTextColor(6, 95, 70);
-  doc.text(`${allUnitsWithDate.length} Units`, card3X + cardW / 2, currentY + 13, { align: 'center' });
-
-  function card33(x: number) {
-    return x;
-  }
+  doc.text(`${unitList.length} Units`, card3X + cardW / 2, currentY + 13, { align: 'center' });
 
   currentY += 28;
 
-  // Signatures Section on Page 1
+  // Signatures Section strictly on Page 1
   doc.setDrawColor(15, 23, 42);
   doc.setLineWidth(0.6);
   doc.line(marginX, currentY, marginX + contentWidth, currentY);
@@ -378,7 +414,7 @@ export async function generateWeeklyReportPdf(options: PdfExportOptions): Promis
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(6.5);
   doc.setTextColor(100, 116, 139);
-  doc.text('I certify that the above hours and units are accurate.', painterSigX + 6, currentY + 30);
+  doc.text('I certify that the hours logged and units serviced above are accurate.', painterSigX + 6, currentY + 30);
 
   // Right Signature: Supervisor
   const bossSigX = marginX + sigW + 10;
@@ -420,263 +456,341 @@ export async function generateWeeklyReportPdf(options: PdfExportOptions): Promis
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(7.5);
   doc.setTextColor(148, 163, 184);
-  doc.text('FieldLog • Paint & Drywall Unit Tracker', marginX, pageHeight - 8);
-  doc.text('Page 1 of 2', marginX + contentWidth, pageHeight - 8, { align: 'right' });
+  doc.text('FieldLog — Daily Paint & Drywall Unit Tracker', marginX, pageHeight - 8);
+  doc.text(`Page 1 of ${totalPages}`, marginX + contentWidth, pageHeight - 8, { align: 'right' });
 
   // =========================================================================
-  // PAGE 2 (AND ONWARDS): PICTURES & UNITS LISTED (BEFORE & AFTER LABELS)
+  // PAGE 2+: 1 FULL PAGE PER UNIT DAY (BEFORE & AFTER PICTURES)
   // =========================================================================
-  doc.addPage();
-  let pageNum = 2;
-
-  const renderPage2Header = (currentPage: number) => {
-    // Top Accent Bar
-    doc.setFillColor(244, 63, 94); // rose-500
+  if (unitList.length === 0) {
+    // If no units recorded, provide clean explanation page
+    doc.addPage();
+    doc.setFillColor(16, 185, 129);
     doc.rect(marginX, 12, contentWidth, 3, 'F');
 
-    // Header Page Tag
-    doc.setFillColor(255, 241, 242); // rose-50
-    doc.setDrawColor(254, 205, 211); // rose-200
-    doc.roundedRect(marginX, 18, 68, 6, 1.5, 1.5, 'FD');
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(7.5);
-    doc.setTextColor(225, 29, 72); // rose-600
-    doc.text(`PAGE ${currentPage} · BEFORE & AFTER PHOTOS`, marginX + 3, 22.2);
-
-    // Document Title
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(16);
     doc.setTextColor(15, 23, 42);
-    doc.text('2. UNITS PATCHED, PAINTED & PHOTO EVIDENCE', marginX, 31);
+    doc.text('2. UNITS & PHOTO PROOF', marginX, 28);
 
-    // Subtitle
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(8.5);
-    doc.setTextColor(100, 116, 139);
-    doc.text('Before & after photos of wall damages repaired, painted, and floors cleaned', marginX, 36);
-
-    // Divider
-    doc.setDrawColor(15, 23, 42);
-    doc.setLineWidth(0.6);
-    doc.line(marginX, 40, marginX + contentWidth, 40);
-  };
-
-  renderPage2Header(pageNum);
-  currentY = 46;
-
-  if (allUnitsWithDate.length === 0) {
     doc.setFillColor(248, 250, 252);
     doc.setDrawColor(226, 232, 240);
-    doc.roundedRect(marginX, currentY, contentWidth, 30, 2, 2, 'FD');
+    doc.roundedRect(marginX, 40, contentWidth, 40, 2, 2, 'FD');
+
     doc.setFont('helvetica', 'italic');
-    doc.setFontSize(9.5);
+    doc.setFontSize(10);
     doc.setTextColor(148, 163, 184);
-    doc.text('No units were recorded for this week.', marginX + contentWidth / 2, currentY + 16, { align: 'center' });
+    doc.text('No units or photos recorded for this week.', marginX + contentWidth / 2, 62, { align: 'center' });
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7.5);
+    doc.text(`Page 2 of 2`, marginX + contentWidth, pageHeight - 8, { align: 'right' });
   } else {
-    for (let uIdx = 0; uIdx < allUnitsWithDate.length; uIdx++) {
-      const { date, unit } = allUnitsWithDate[uIdx];
+    // Render 1 FULL PAGE FOR EACH UNIT
+    unitList.forEach((item, unitIdx) => {
+      const pageNum = 2 + unitIdx;
+      doc.addPage();
+
+      const { date, dayName, unit } = item;
       const beforePhotos = unit.photos.filter((p) => p.type === 'before');
       const afterPhotos = unit.photos.filter((p) => p.type === 'after');
 
-      // Calculate unit block height
-      // Header: ~10mm, Notes: ~8mm (if present), Photos: ~50mm, Padding: ~8mm => ~76mm
-      const hasNotes = !!unit.notes && unit.notes.trim().length > 0;
-      const unitCardHeight = hasNotes ? 78 : 70;
+      // Top Header Ribbon
+      doc.setFillColor(244, 63, 94); // rose-500
+      doc.rect(marginX, 12, contentWidth, 3, 'F');
 
-      // Check if we need a new page
-      if (currentY + unitCardHeight > pageHeight - 16) {
-        // Footer on current page
-        doc.setFont('helvetica', 'normal');
-        doc.setFontSize(7.5);
-        doc.setTextColor(148, 163, 184);
-        doc.text('FieldLog • Paint & Drywall Unit Tracker', marginX, pageHeight - 8);
-        doc.text(`Page ${pageNum}`, marginX + contentWidth, pageHeight - 8, { align: 'right' });
-
-        doc.addPage();
-        pageNum++;
-        renderPage2Header(pageNum);
-        currentY = 46;
-      }
-
-      // Unit Card Outer Frame
-      doc.setFillColor(255, 255, 255);
-      doc.setDrawColor(203, 213, 225);
-      doc.setLineWidth(0.3);
-      doc.roundedRect(marginX, currentY, contentWidth, unitCardHeight, 2, 2, 'FD');
-
-      // Unit Header Bar
-      doc.setFillColor(248, 250, 252);
-      doc.roundedRect(marginX, currentY, contentWidth, 9, 2, 2, 'F');
-      doc.setDrawColor(226, 232, 240);
-      doc.line(marginX, currentY + 9, marginX + contentWidth, currentY + 9);
-
+      // Header Page Pill Tag
+      doc.setFillColor(255, 241, 242); // rose-50
+      doc.setDrawColor(254, 205, 211); // rose-200
+      doc.roundedRect(marginX, 18, 72, 6, 1.5, 1.5, 'FD');
       doc.setFont('helvetica', 'bold');
-      doc.setFontSize(10.5);
-      doc.setTextColor(15, 23, 42);
-      doc.text(unit.unitNumber || 'Unit', marginX + 4, currentY + 6.3);
+      doc.setFontSize(7.5);
+      doc.setTextColor(225, 29, 72); // rose-600
+      doc.text(`PAGE ${pageNum} OF ${totalPages} · UNIT WORK & PHOTO PROOF`, marginX + 3, 22.2);
 
+      // Date badge on top right
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(9);
+      doc.setTextColor(71, 85, 105);
+      doc.text(`${dayName} (${date})`, marginX + contentWidth, 22.2, { align: 'right' });
+
+      // Unit Main Title & Paint Color
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(22);
+      doc.setTextColor(15, 23, 42); // slate-900
+      doc.text(unit.unitNumber || `Unit #${unitIdx + 1}`, marginX, 33);
+
+      let subY = 40;
       if (unit.paintColor) {
-        doc.setFont('helvetica', 'normal');
-        doc.setFontSize(8);
-        doc.setTextColor(71, 85, 105);
-        doc.text(`•  Paint: ${unit.paintColor}`, marginX + 38, currentY + 6.3);
+        doc.setFillColor(241, 245, 249);
+        doc.setDrawColor(203, 213, 225);
+        doc.roundedRect(marginX, subY - 4.5, 75, 6.5, 1, 1, 'FD');
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(8.5);
+        doc.setTextColor(51, 65, 85);
+        doc.text(`Paint: ${unit.paintColor}`, marginX + 3, subY);
       }
+
+      // Completion status badge
+      const statusX = unit.paintColor ? marginX + 80 : marginX;
+      doc.setFillColor(236, 253, 245);
+      doc.setDrawColor(167, 243, 208);
+      doc.roundedRect(statusX, subY - 4.5, 70, 6.5, 1, 1, 'FD');
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(8.5);
+      doc.setTextColor(5, 150, 105);
+      doc.text('✓ Finished, Painted & Floors Cleaned', statusX + 3, subY);
+
+      // Technician & Supervisor info line
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(8);
+      doc.setTextColor(100, 116, 139);
+      doc.text(`Technician: ${profile.workerName} • Supervisor: ${profile.bossName}`, marginX + contentWidth, subY, { align: 'right' });
+
+      // Divider line
+      let unitY = 46;
+      doc.setDrawColor(15, 23, 42);
+      doc.setLineWidth(0.6);
+      doc.line(marginX, unitY, marginX + contentWidth, unitY);
+
+      // Work & Damage Description Box
+      unitY += 5;
+      const notesBoxH = 16;
+      doc.setFillColor(248, 250, 252);
+      doc.setDrawColor(226, 232, 240);
+      doc.roundedRect(marginX, unitY, contentWidth, notesBoxH, 2, 2, 'FD');
 
       doc.setFont('helvetica', 'bold');
-      doc.setFontSize(8);
-      doc.setTextColor(5, 150, 105);
-      const statusLabel = unit.isCompleted ? '✓ Completed & Cleaned' : 'Work Logged';
-      doc.text(`${statusLabel} (${date})`, marginX + contentWidth - 4, currentY + 6.3, { align: 'right' });
+      doc.setFontSize(7.5);
+      doc.setTextColor(71, 85, 105);
+      doc.text('SCOPE & REPAIRS COMPLETED:', marginX + 4, unitY + 5);
 
-      let cardInnerY = currentY + 12;
-
-      // Notes
-      if (hasNotes) {
-        doc.setFont('helvetica', 'normal');
-        doc.setFontSize(7.5);
-        doc.setTextColor(51, 65, 85);
-        const wrappedNotes = doc.splitTextToSize(unit.notes || '', contentWidth - 8);
-        doc.text(wrappedNotes[0] || '', marginX + 4, cardInnerY);
-        cardInnerY += 6;
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(8.5);
+      doc.setTextColor(15, 23, 42);
+      const notesText = unit.notes && unit.notes.trim().length > 0
+        ? unit.notes
+        : 'Found small holes/drywall damage, patched with mud, sanded smooth, rolled paint, cleaned floors.';
+      const splitNotes = doc.splitTextToSize(notesText, contentWidth - 8);
+      doc.text(splitNotes[0] || '', marginX + 4, unitY + 11);
+      if (splitNotes[1]) {
+        doc.text(splitNotes[1], marginX + 4, unitY + 14.5);
       }
 
-      // Photo Columns: Left = [BEFORE · DAMAGE], Right = [AFTER · PAINTED]
-      const colWidth = (contentWidth - 10) / 2;
-      const colHeight = 48;
+      // =========================================================================
+      // DEDICATED LARGE BEFORE & AFTER PHOTO COLUMNS (TAKES FULL PAGE)
+      // =========================================================================
+      unitY += notesBoxH + 6;
 
-      // ---------------- BEFORE COLUMN ----------------
-      const beforeColX = marginX + 3;
-      // Header tag for Before
+      const colGap = 7;
+      const colWidth = (contentWidth - colGap) / 2; // ~90.4 mm
+      const photoBoxH = 155; // Generous height to make pictures large and clear
+
+      // ---------------- LEFT COLUMN: [BEFORE · DAMAGE] ----------------
+      const beforeX = marginX;
+
+      // Header Tag: [BEFORE · DAMAGE]
       doc.setFillColor(254, 242, 242); // rose-50
       doc.setDrawColor(254, 205, 211); // rose-200
-      doc.roundedRect(beforeColX, cardInnerY, colWidth, 6, 1, 1, 'FD');
+      doc.roundedRect(beforeX, unitY, colWidth, 7, 1.5, 1.5, 'FD');
 
       doc.setFont('helvetica', 'bold');
-      doc.setFontSize(7.5);
+      doc.setFontSize(8.5);
       doc.setTextColor(190, 18, 60); // rose-700
-      doc.text('[BEFORE · DAMAGE]', beforeColX + 3, cardInnerY + 4.2);
+      doc.text('[BEFORE · DAMAGE]', beforeX + 4, unitY + 5);
 
       doc.setFont('helvetica', 'normal');
-      doc.setFontSize(6.5);
-      doc.setTextColor(159, 18, 57);
-      doc.text(`${beforePhotos.length} photo${beforePhotos.length === 1 ? '' : 's'}`, beforeColX + colWidth - 3, cardInnerY + 4.2, { align: 'right' });
+      doc.setFontSize(7);
+      doc.setTextColor(190, 18, 60);
+      doc.text(`${beforePhotos.length} photo${beforePhotos.length === 1 ? '' : 's'}`, beforeX + colWidth - 4, unitY + 5, { align: 'right' });
 
-      // Before Image Frame
-      const beforeImgY = cardInnerY + 7;
-      const beforeImgH = colHeight - 8;
+      // Frame for Before Photo
+      const beforeContentY = unitY + 9;
+      const beforePhotoH = photoBoxH - 12;
 
-      if (beforePhotos.length > 0) {
-        const firstPhoto = beforePhotos[0];
-        const cachedImg = preparedPhotosMap.get(firstPhoto.id);
+      renderPhotoColumn(
+        doc,
+        beforePhotos,
+        preparedPhotos,
+        beforeX,
+        beforeContentY,
+        colWidth,
+        beforePhotoH,
+        '[ No before damage photo recorded ]',
+        '#ffe4e6'
+      );
 
-        if (cachedImg) {
-          try {
-            // Draw photo inside frame
-            doc.addImage(cachedImg, 'JPEG', beforeColX, beforeImgY, colWidth, beforeImgH, undefined, 'FAST');
-            doc.setDrawColor(226, 232, 240);
-            doc.rect(beforeColX, beforeImgY, colWidth, beforeImgH, 'S');
+      // ---------------- RIGHT COLUMN: [AFTER · PAINTED] ----------------
+      const afterX = marginX + colWidth + colGap;
 
-            // If there are multiple before photos, indicate badge
-            if (beforePhotos.length > 1) {
-              doc.setFillColor(15, 23, 42);
-              doc.rect(beforeColX + 2, beforeImgY + beforeImgH - 5.5, 22, 4.5, 'F');
-              doc.setFont('helvetica', 'bold');
-              doc.setFontSize(6);
-              doc.setTextColor(255, 255, 255);
-              doc.text(`+${beforePhotos.length - 1} more pic`, beforeColX + 4, beforeImgY + beforeImgH - 2.2);
-            }
-          } catch {
-            renderPlaceholderPhoto(doc, beforeColX, beforeImgY, colWidth, beforeImgH, 'Photo loading error');
-          }
-        } else {
-          renderPlaceholderPhoto(doc, beforeColX, beforeImgY, colWidth, beforeImgH, 'No before photo recorded');
-        }
-      } else {
-        renderPlaceholderPhoto(doc, beforeColX, beforeImgY, colWidth, beforeImgH, '[ No before photo recorded ]');
-      }
-
-      // ---------------- AFTER COLUMN ----------------
-      const afterColX = marginX + 3 + colWidth + 4;
-      // Header tag for After
+      // Header Tag: [AFTER · PAINTED]
       doc.setFillColor(240, 253, 244); // emerald-50
       doc.setDrawColor(187, 247, 208); // emerald-200
-      doc.roundedRect(afterColX, cardInnerY, colWidth, 6, 1, 1, 'FD');
+      doc.roundedRect(afterX, unitY, colWidth, 7, 1.5, 1.5, 'FD');
+
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(8.5);
+      doc.setTextColor(21, 128, 61); // emerald-700
+      doc.text('[AFTER · PAINTED]', afterX + 4, unitY + 5);
+
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(7);
+      doc.setTextColor(21, 128, 61);
+      doc.text(`${afterPhotos.length} photo${afterPhotos.length === 1 ? '' : 's'}`, afterX + colWidth - 4, unitY + 5, { align: 'right' });
+
+      // Frame for After Photo
+      const afterContentY = unitY + 9;
+      const afterPhotoH = photoBoxH - 12;
+
+      renderPhotoColumn(
+        doc,
+        afterPhotos,
+        preparedPhotos,
+        afterX,
+        afterContentY,
+        colWidth,
+        afterPhotoH,
+        '[ No after painted photo recorded ]',
+        '#dcfce7'
+      );
+
+      // Bottom Quality & Cleanliness Verification Bar
+      const verifyY = unitY + photoBoxH + 3;
+      doc.setFillColor(248, 250, 252);
+      doc.setDrawColor(226, 232, 240);
+      doc.roundedRect(marginX, verifyY, contentWidth, 9, 1.5, 1.5, 'FD');
 
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(7.5);
-      doc.setTextColor(21, 128, 61); // emerald-700
-      doc.text('[AFTER · PAINTED]', afterColX + 3, cardInnerY + 4.2);
+      doc.setTextColor(15, 23, 42);
+      doc.text('QUALITY & CLEANUP CHECK:', marginX + 4, verifyY + 5.8);
 
       doc.setFont('helvetica', 'normal');
-      doc.setFontSize(6.5);
-      doc.setTextColor(21, 128, 61);
-      doc.text(`${afterPhotos.length} photo${afterPhotos.length === 1 ? '' : 's'}`, afterColX + colWidth - 3, cardInnerY + 4.2, { align: 'right' });
+      doc.setFontSize(7.5);
+      doc.setTextColor(5, 150, 105);
+      doc.text('✓ Wall Patched  •  ✓ Paint Blended & Rolled  •  ✓ Floors Cleaned & Vacuumped', marginX + 56, verifyY + 5.8);
 
-      // After Image Frame
-      const afterImgY = cardInnerY + 7;
-      const afterImgH = colHeight - 8;
-
-      if (afterPhotos.length > 0) {
-        const firstPhoto = afterPhotos[0];
-        const cachedImg = preparedPhotosMap.get(firstPhoto.id);
-
-        if (cachedImg) {
-          try {
-            doc.addImage(cachedImg, 'JPEG', afterColX, afterImgY, colWidth, afterImgH, undefined, 'FAST');
-            doc.setDrawColor(226, 232, 240);
-            doc.rect(afterColX, afterImgY, colWidth, afterImgH, 'S');
-
-            if (afterPhotos.length > 1) {
-              doc.setFillColor(15, 23, 42);
-              doc.rect(afterColX + 2, afterImgY + afterImgH - 5.5, 22, 4.5, 'F');
-              doc.setFont('helvetica', 'bold');
-              doc.setFontSize(6);
-              doc.setTextColor(255, 255, 255);
-              doc.text(`+${afterPhotos.length - 1} more pic`, afterColX + 4, afterImgY + afterImgH - 2.2);
-            }
-          } catch {
-            renderPlaceholderPhoto(doc, afterColX, afterImgY, colWidth, afterImgH, 'Photo loading error');
-          }
-        } else {
-          renderPlaceholderPhoto(doc, afterColX, afterImgY, colWidth, afterImgH, 'No after photo recorded');
-        }
-      } else {
-        renderPlaceholderPhoto(doc, afterColX, afterImgY, colWidth, afterImgH, '[ No after photo recorded ]');
-      }
-
-      currentY += unitCardHeight + 5;
-    }
+      // Page Footer
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(7.5);
+      doc.setTextColor(148, 163, 184);
+      doc.text(`FieldLog — Daily Paint & Drywall Unit Tracker • ${unit.unitNumber || 'Unit'}`, marginX, pageHeight - 8);
+      doc.text(`Page ${pageNum} of ${totalPages}`, marginX + contentWidth, pageHeight - 8, { align: 'right' });
+    });
   }
-
-  // Footer on Last Page
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(7.5);
-  doc.setTextColor(148, 163, 184);
-  doc.text('FieldLog • Paint & Drywall Unit Tracker', marginX, pageHeight - 8);
-  doc.text(`Page ${pageNum}`, marginX + contentWidth, pageHeight - 8, { align: 'right' });
 
   return doc;
 }
 
-function renderPlaceholderPhoto(
+/**
+ * Helper to render photos inside a dedicated column.
+ * If 1 photo: fills the frame with high-resolution clarity.
+ * If multiple photos: tiles them cleanly inside the column.
+ */
+function renderPhotoColumn(
   doc: jsPDF,
+  photos: UnitPhoto[],
+  cachedPhotos: Map<string, string | null>,
   x: number,
   y: number,
   w: number,
   h: number,
-  text: string
+  emptyText: string,
+  borderColor: string
 ) {
-  doc.setFillColor(248, 250, 252);
-  doc.setDrawColor(226, 232, 240);
+  if (photos.length === 0) {
+    // Empty Placeholder Box
+    doc.setFillColor(250, 250, 250);
+    doc.setDrawColor(226, 232, 240);
+    doc.roundedRect(x, y, w, h, 2, 2, 'FD');
+
+    doc.setFont('helvetica', 'italic');
+    doc.setFontSize(8.5);
+    doc.setTextColor(148, 163, 184);
+    doc.text(emptyText, x + w / 2, y + h / 2, { align: 'center' });
+    return;
+  }
+
+  if (photos.length === 1) {
+    // 1 Full-sized Large Photo
+    const photo = photos[0];
+    const dataUrl = cachedPhotos.get(photo.id);
+
+    if (dataUrl) {
+      try {
+        doc.addImage(dataUrl, 'JPEG', x, y, w, h, undefined, 'FAST');
+        doc.setDrawColor(203, 213, 225);
+        doc.setLineWidth(0.3);
+        doc.rect(x, y, w, h, 'S');
+
+        if (photo.caption) {
+          doc.setFillColor(15, 23, 42);
+          doc.rect(x, y + h - 8, w, 8, 'F');
+          doc.setFont('helvetica', 'normal');
+          doc.setFontSize(7);
+          doc.setTextColor(255, 255, 255);
+          doc.text(photo.caption, x + 3, y + h - 2.5);
+        }
+      } catch (err) {
+        console.warn('Error adding image to PDF:', err);
+        renderErrorBox(doc, x, y, w, h, 'Image could not be rendered');
+      }
+    } else {
+      renderErrorBox(doc, x, y, w, h, 'Image loading failed');
+    }
+  } else {
+    // Multiple Photos: Render up to 2 stacked photos in the column
+    const photoH = (h - 4) / 2;
+    photos.slice(0, 2).forEach((photo, idx) => {
+      const pY = y + idx * (photoH + 4);
+      const dataUrl = cachedPhotos.get(photo.id);
+
+      if (dataUrl) {
+        try {
+          doc.addImage(dataUrl, 'JPEG', x, pY, w, photoH, undefined, 'FAST');
+          doc.setDrawColor(203, 213, 225);
+          doc.setLineWidth(0.3);
+          doc.rect(x, pY, w, photoH, 'S');
+
+          if (photo.caption) {
+            doc.setFillColor(15, 23, 42);
+            doc.rect(x, pY + photoH - 6.5, w, 6.5, 'F');
+            doc.setFont('helvetica', 'normal');
+            doc.setFontSize(6.5);
+            doc.setTextColor(255, 255, 255);
+            doc.text(photo.caption, x + 3, pY + photoH - 2);
+          }
+        } catch {
+          renderErrorBox(doc, x, pY, w, photoH, 'Image error');
+        }
+      } else {
+        renderErrorBox(doc, x, pY, w, photoH, 'Image not available');
+      }
+    });
+
+    if (photos.length > 2) {
+      doc.setFillColor(15, 23, 42);
+      doc.rect(x + 2, y + h - 7, 30, 5, 'F');
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(6.5);
+      doc.setTextColor(255, 255, 255);
+      doc.text(`+${photos.length - 2} more photos`, x + 4, y + h - 3);
+    }
+  }
+}
+
+function renderErrorBox(doc: jsPDF, x: number, y: number, w: number, h: number, msg: string) {
+  doc.setFillColor(254, 242, 242);
+  doc.setDrawColor(254, 205, 211);
   doc.rect(x, y, w, h, 'FD');
   doc.setFont('helvetica', 'italic');
   doc.setFontSize(7.5);
-  doc.setTextColor(148, 163, 184);
-  doc.text(text, x + w / 2, y + h / 2 + 1, { align: 'center' });
+  doc.setTextColor(225, 29, 72);
+  doc.text(msg, x + w / 2, y + h / 2, { align: 'center' });
 }
 
 /**
- * Downloads the PDF directly to device or triggers mobile share sheet if available.
+ * Downloads the PDF directly to device and offers mobile sharing.
  */
 export async function downloadOrShareWeeklyPdf(options: PdfExportOptions): Promise<{
   success: boolean;
@@ -700,19 +814,17 @@ export async function downloadOrShareWeeklyPdf(options: PdfExportOptions): Promi
       await navigator.share({
         files: [pdfFile],
         title: `Weekly Work Report (${options.profile.workerName || 'Painter'})`,
-        text: `Weekly Paint & Drywall log for ${options.dates[0]} to ${options.dates[6]}`,
+        text: `Weekly Paint & Drywall log with Before/After photos for ${options.dates[0]} to ${options.dates[6]}`,
       });
       return { success: true, shared: true, filename };
     } catch (err: unknown) {
       if ((err as Error)?.name === 'AbortError') {
-        // User cancelled share dialog, still fine
         return { success: true, shared: true, filename };
       }
-      // If native share threw other error, fallback to direct download
     }
   }
 
-  // Standard direct file download
+  // Fallback to direct client-side file download
   doc.save(filename);
   return { success: true, shared: false, filename };
 }

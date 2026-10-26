@@ -43,42 +43,88 @@ export async function compressImage(file: File, maxDimension = 1280, quality = 0
 
 export function createModernSamplePhoto(type: 'before' | 'after', unitLabel: string, detail: string): string {
   const isBefore = type === 'before';
-  const tagColor = isBefore ? '#ef4444' : '#10b981';
-  const tagLabel = isBefore ? 'BEFORE · DAMAGE' : 'AFTER · PAINTED';
 
-  const artSvg = isBefore
-    ? `
-      <rect x="60" y="50" width="480" height="230" rx="12" fill="#27272a" stroke="#3f3f46" stroke-width="2"/>
-      <!-- Hole in wall -->
-      <polygon points="260,110 320,125 350,170 310,210 240,220 210,175 225,130" fill="#09090b" stroke="#71717a" stroke-width="2"/>
-      <!-- Cracks around hole -->
-      <line x1="260" y1="110" x2="280" y2="85" stroke="#a1a1aa" stroke-width="2"/>
-      <line x1="350" y1="170" x2="385" y2="185" stroke="#a1a1aa" stroke-width="2"/>
-      <line x1="210" y1="175" x2="180" y2="200" stroke="#a1a1aa" stroke-width="2"/>
-      <text x="248" y="168" fill="#f43f5e" font-family="monospace" font-size="12" font-weight="bold">HOLE</text>
-    `
-    : `
-      <rect x="60" y="50" width="480" height="230" rx="12" fill="#27272a" stroke="#10b981" stroke-width="2.5"/>
-      <!-- Fresh smooth paint surface -->
-      <rect x="80" y="70" width="440" height="190" rx="8" fill="#3f3f46" opacity="0.6"/>
-      <circle cx="300" cy="165" r="50" fill="#10b981" opacity="0.15"/>
-      <path d="M 280 165 L 295 180 L 325 150" fill="none" stroke="#10b981" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
-      <text x="245" y="220" fill="#34d399" font-family="sans-serif" font-size="13" font-weight="bold">CLEAN & PAINTED</text>
-    `;
+  if (typeof document !== 'undefined') {
+    const canvas = document.createElement('canvas');
+    canvas.width = 640;
+    canvas.height = 440;
+    const ctx = canvas.getContext('2d');
+    if (ctx) {
+      // Wall background
+      ctx.fillStyle = isBefore ? '#27272a' : '#1e293b';
+      ctx.fillRect(0, 0, 640, 440);
 
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="600" height="380" viewBox="0 0 600 380">
-    <rect width="600" height="380" fill="#09090b"/>
-    ${artSvg}
-    
-    <!-- Top badge -->
-    <rect x="76" y="66" width="135" height="26" rx="6" fill="${tagColor}"/>
-    <text x="88" y="83" fill="#ffffff" font-family="sans-serif" font-size="11" font-weight="bold">${tagLabel}</text>
+      // Inner wall surface
+      ctx.fillStyle = isBefore ? '#3f3f46' : '#334155';
+      ctx.fillRect(30, 30, 580, 290);
 
-    <!-- Bottom label -->
-    <rect x="0" y="300" width="600" height="80" fill="#18181b"/>
-    <text x="24" y="332" fill="#f4f4f5" font-family="sans-serif" font-size="16" font-weight="bold">${unitLabel}</text>
-    <text x="24" y="356" fill="#a1a1aa" font-family="sans-serif" font-size="12">${detail}</text>
-  </svg>`;
+      if (isBefore) {
+        // Draw drywall hole and fracture lines
+        ctx.fillStyle = '#09090b';
+        ctx.beginPath();
+        ctx.ellipse(320, 175, 75, 52, 0.15, 0, 2 * Math.PI);
+        ctx.fill();
+        ctx.strokeStyle = '#71717a';
+        ctx.lineWidth = 3;
+        ctx.stroke();
 
-  return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
+        // Cracks radiating from drywall damage
+        ctx.strokeStyle = '#a1a1aa';
+        ctx.lineWidth = 2.5;
+        ctx.beginPath();
+        ctx.moveTo(250, 160); ctx.lineTo(170, 130);
+        ctx.moveTo(380, 185); ctx.lineTo(470, 215);
+        ctx.moveTo(330, 125); ctx.lineTo(345, 75);
+        ctx.moveTo(300, 225); ctx.lineTo(270, 285);
+        ctx.stroke();
+
+        // Prominent Red [BEFORE · DAMAGE] Banner
+        ctx.fillStyle = '#e11d48';
+        ctx.fillRect(40, 40, 220, 34);
+        ctx.fillStyle = '#ffffff';
+        ctx.font = 'bold 15px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+        ctx.fillText('[BEFORE · DAMAGE]', 52, 63);
+      } else {
+        // Smooth painted surface
+        ctx.fillStyle = '#475569';
+        ctx.fillRect(45, 45, 550, 260);
+
+        // Prominent Green [AFTER · PAINTED] Banner
+        ctx.fillStyle = '#059669';
+        ctx.fillRect(40, 40, 240, 34);
+        ctx.fillStyle = '#ffffff';
+        ctx.font = 'bold 15px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+        ctx.fillText('[AFTER · PAINTED]', 52, 63);
+
+        // Quality check circle and checkmark
+        ctx.strokeStyle = '#34d399';
+        ctx.lineWidth = 5;
+        ctx.beginPath();
+        ctx.arc(320, 175, 44, 0, 2 * Math.PI);
+        ctx.stroke();
+
+        ctx.lineWidth = 6;
+        ctx.beginPath();
+        ctx.moveTo(302, 175); ctx.lineTo(316, 189); ctx.lineTo(342, 158);
+        ctx.stroke();
+      }
+
+      // Bottom info card
+      ctx.fillStyle = '#0f172a';
+      ctx.fillRect(0, 340, 640, 100);
+
+      ctx.fillStyle = '#ffffff';
+      ctx.font = 'bold 18px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+      ctx.fillText(unitLabel, 28, 375);
+
+      ctx.fillStyle = '#94a3b8';
+      ctx.font = '13px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+      ctx.fillText(detail, 28, 405);
+
+      return canvas.toDataURL('image/jpeg', 0.88);
+    }
+  }
+
+  // Fallback minimal 1x1 JPEG
+  return 'data:image/jpeg;base64,/9j/4AAQSkZJRgABAQEASABIAAD/2wBDAP//////////////////////////////////////////////////////////////////////////////////////wgALCAABAAEBAREA/8QAFBABAAAAAAAAAAAAAAAAAAAAAP/aAAgBAQABPxA=';
 }

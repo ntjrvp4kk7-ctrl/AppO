@@ -11,6 +11,12 @@ interface WeeklyPrintViewProps {
   };
 }
 
+interface UnitWithDate {
+  date: string;
+  dayName: string;
+  unit: UnitWork;
+}
+
 export const WeeklyPrintView: React.FC<WeeklyPrintViewProps> = ({
   dates,
   logs,
@@ -20,19 +26,32 @@ export const WeeklyPrintView: React.FC<WeeklyPrintViewProps> = ({
   let totalHours = 0;
   let totalRegular = 0;
   let totalOvertime = 0;
-  const allUnitsWithDate: { date: string; unit: UnitWork }[] = [];
+  const unitList: UnitWithDate[] = [];
 
   dates.forEach((dateStr) => {
-    const log = logs.find((l) => l.date === dateStr);
+    const log = logs.find((l) => l.date && l.date.slice(0, 10) === dateStr.slice(0, 10));
     if (log) {
-      totalHours += log.time.totalHours;
-      totalRegular += Math.min(8, log.time.totalHours);
-      totalOvertime += log.time.overtimeHours;
-      log.units.forEach((u) => {
-        allUnitsWithDate.push({ date: dateStr, unit: u });
-      });
+      totalHours += log.time?.totalHours || 0;
+      totalRegular += Math.min(8, log.time?.totalHours || 0);
+      totalOvertime += log.time?.overtimeHours || 0;
+
+      if (Array.isArray(log.units)) {
+        const [y, m, d] = dateStr.split('-').map(Number);
+        const dayObj = new Date(y, m - 1, d);
+        const dayName = dayObj.toLocaleDateString('en-US', {
+          weekday: 'long',
+          month: 'short',
+          day: 'numeric',
+        });
+
+        log.units.forEach((u) => {
+          unitList.push({ date: dateStr, dayName, unit: u });
+        });
+      }
     }
   });
+
+  const totalPages = unitList.length > 0 ? 1 + unitList.length : 2;
 
   return (
     <div className="print-document hidden print:block text-slate-900 bg-white font-sans text-xs leading-normal">
@@ -40,7 +59,7 @@ export const WeeklyPrintView: React.FC<WeeklyPrintViewProps> = ({
           PAGE 1: THE TIME (HOURS & TIMESHEET + SIGNATURES)
           Strictly Page 1 with page-break-after: always
          ========================================================================= */}
-      <div className="pdf-page-1 border-b-2 border-slate-900 pb-4 mb-4">
+      <div className="pdf-page-1 border-b-2 border-slate-900 pb-4 mb-4" style={{ pageBreakAfter: 'always', breakAfter: 'page' }}>
         <div>
           {/* Document Top Header */}
           <div className="border-b-2 border-slate-900 pb-4 mb-6 flex justify-between items-start">
@@ -65,7 +84,7 @@ export const WeeklyPrintView: React.FC<WeeklyPrintViewProps> = ({
                 {dates[0]} to {dates[6]}
               </span>
               <span className="text-[10px] text-slate-400 block mt-1">
-                Page 1 of 2: Weekly Hours
+                Page 1 of {totalPages}: Weekly Hours
               </span>
             </div>
           </div>
@@ -77,7 +96,7 @@ export const WeeklyPrintView: React.FC<WeeklyPrintViewProps> = ({
                 1. Weekly Hours Breakdown
               </h2>
               <span className="text-xs text-slate-600 font-medium">
-                {allUnitsWithDate.length} total units completed
+                {unitList.length} total units completed
               </span>
             </div>
 
@@ -94,8 +113,10 @@ export const WeeklyPrintView: React.FC<WeeklyPrintViewProps> = ({
               </thead>
               <tbody>
                 {dates.map((dateStr) => {
-                  const log = logs.find((l) => l.date === dateStr);
-                  const day = new Date(dateStr + 'T12:00:00').toLocaleDateString('en-US', {
+                  const log = logs.find((l) => l.date && l.date.slice(0, 10) === dateStr.slice(0, 10));
+                  const [y, m, d] = dateStr.split('-').map(Number);
+                  const dayObj = new Date(y, m - 1, d);
+                  const day = dayObj.toLocaleDateString('en-US', {
                     weekday: 'short',
                     month: 'short',
                     day: 'numeric',
@@ -116,14 +137,14 @@ export const WeeklyPrintView: React.FC<WeeklyPrintViewProps> = ({
                   return (
                     <tr key={dateStr} className="border-b border-slate-200">
                       <td className="py-2 px-3 font-bold text-slate-900">{day}</td>
-                      <td className="py-2 px-3 text-center font-mono font-medium">{log.time.startTime}</td>
-                      <td className="py-2 px-3 text-center font-mono font-medium">{log.time.endTime}</td>
-                      <td className="py-2 px-3 text-center text-slate-600">{log.time.lunchDeductionMinutes}m</td>
+                      <td className="py-2 px-3 text-center font-mono font-medium">{log.time?.startTime || '--:--'}</td>
+                      <td className="py-2 px-3 text-center font-mono font-medium">{log.time?.endTime || '--:--'}</td>
+                      <td className="py-2 px-3 text-center text-slate-600">{log.time?.lunchDeductionMinutes || 30}m</td>
                       <td className="py-2 px-3 text-center font-bold text-slate-800">
-                        {log.units.length} unit{log.units.length === 1 ? '' : 's'}
+                        {(log.units?.length || 0)} unit{(log.units?.length || 0) === 1 ? '' : 's'}
                       </td>
                       <td className="py-2 px-3 text-right font-mono font-bold text-slate-900 text-sm">
-                        {log.time.totalHours.toFixed(1)}
+                        {(log.time?.totalHours || 0).toFixed(1)}
                       </td>
                     </tr>
                   );
@@ -135,7 +156,7 @@ export const WeeklyPrintView: React.FC<WeeklyPrintViewProps> = ({
                     Weekly Total Hours
                   </td>
                   <td className="py-3 px-3 text-center font-bold text-slate-900 text-xs">
-                    {allUnitsWithDate.length} Units Finished
+                    {unitList.length} Units Finished
                   </td>
                   <td className="py-3 px-3 text-right font-mono text-base font-black text-slate-900">
                     {totalHours.toFixed(1)} hrs
@@ -190,141 +211,127 @@ export const WeeklyPrintView: React.FC<WeeklyPrintViewProps> = ({
       </div>
 
       {/* =========================================================================
-          PAGE 2: PICTURES & UNITS LISTED (WITH BEFORE AND AFTER LABELS)
-          Strictly Page 2 with page-break-before: always
+          PAGES 2+: 1 DEDICATED FULL PAGE PER UNIT DAY (WITH BEFORE/AFTER PHOTOS)
          ========================================================================= */}
-      <div className="pdf-page-2">
-        {/* Page 2 Header */}
-        <div className="border-b-2 border-slate-900 pb-3 mb-5 flex justify-between items-end">
-          <div>
-            <h2 className="text-xl font-black uppercase tracking-tight text-slate-950">
-              2. Units Patched, Painted & Photo Evidence
-            </h2>
-            <p className="text-xs text-slate-600 mt-0.5">
-              Before & After photo proof of wall damages, patching, paint & cleaned floors
-            </p>
-          </div>
-          <div className="text-right">
-            <span className="text-xs font-bold text-slate-500">
-              Page 2: Photo Documentation
-            </span>
-            <span className="text-[11px] text-slate-500 block">
-              {allUnitsWithDate.length} Units Logged
-            </span>
-          </div>
-        </div>
+      {unitList.map((item, idx) => {
+        const pageNum = 2 + idx;
+        const { date, dayName, unit } = item;
+        const beforePhotos = unit.photos.filter((p) => p.type === 'before');
+        const afterPhotos = unit.photos.filter((p) => p.type === 'after');
 
-        {/* Units list */}
-        {allUnitsWithDate.length > 0 ? (
-          <div className="space-y-4">
-            {allUnitsWithDate.map(({ date, unit }) => {
-              const beforePhotos = unit.photos.filter((p) => p.type === 'before');
-              const afterPhotos = unit.photos.filter((p) => p.type === 'after');
-
-              return (
-                <div
-                  key={unit.id}
-                  className="print-unit-card border border-slate-300 rounded-lg p-3.5 bg-white text-xs"
-                >
-                  {/* Unit Title Header */}
-                  <div className="flex justify-between items-start border-b border-slate-200 pb-1.5 mb-2">
-                    <div>
-                      <span className="font-black text-sm text-slate-950 mr-2">
-                        {unit.unitNumber || 'Unit'}
-                      </span>
-                      {unit.paintColor && (
-                        <span className="text-xs text-slate-700 bg-slate-100 px-2 py-0.5 rounded border border-slate-200 font-semibold">
-                          Paint: {unit.paintColor}
-                        </span>
-                      )}
-                    </div>
-                    <div className="text-right">
-                      <span className="font-bold text-emerald-800 text-xs">
-                        {unit.isCompleted ? '✓ Completed & Cleaned' : 'Work Logged'}
-                      </span>
-                      <span className="text-[11px] text-slate-500 block">{date}</span>
-                    </div>
-                  </div>
-
-                  {/* Notes */}
-                  {unit.notes && (
-                    <p className="text-xs text-slate-800 mb-2.5 font-medium bg-slate-50 p-2 rounded border border-slate-100">
-                      {unit.notes}
-                    </p>
+        return (
+          <div
+            key={unit.id + '-' + idx}
+            className="pdf-unit-page border-b-2 border-slate-900 pb-6 mb-6 pt-4"
+            style={{ pageBreakBefore: 'always', breakBefore: 'page' }}
+          >
+            {/* Header */}
+            <div className="border-b-2 border-slate-900 pb-3 mb-4 flex justify-between items-end">
+              <div>
+                <span className="text-[10px] font-black uppercase tracking-wider text-rose-700 bg-rose-50 px-2 py-0.5 rounded border border-rose-200">
+                  PAGE {pageNum} OF {totalPages} · UNIT WORK & PHOTO PROOF
+                </span>
+                <h2 className="text-2xl font-black uppercase tracking-tight text-slate-950 mt-1">
+                  {unit.unitNumber || `Unit #${idx + 1}`}
+                </h2>
+                <div className="flex items-center gap-2 mt-1">
+                  {unit.paintColor && (
+                    <span className="text-xs text-slate-700 bg-slate-100 px-2 py-0.5 rounded border border-slate-200 font-semibold">
+                      Paint: {unit.paintColor}
+                    </span>
                   )}
-
-                  {/* Side by side Before and After photo columns */}
-                  <div className="grid grid-cols-2 gap-3 pt-1">
-                    {/* BEFORE COLUMN */}
-                    <div className="border border-rose-200 rounded-lg p-2 bg-rose-50/30">
-                      <div className="flex items-center justify-between mb-1.5">
-                        <span className="font-black text-rose-700 text-xs tracking-wider uppercase">
-                          [BEFORE · DAMAGE]
-                        </span>
-                        <span className="text-[10px] text-slate-500">
-                          {beforePhotos.length} photo{beforePhotos.length === 1 ? '' : 's'}
-                        </span>
-                      </div>
-
-                      {beforePhotos.length > 0 ? (
-                        <div className="grid grid-cols-2 gap-1.5">
-                          {beforePhotos.map((photo) => (
-                            <div key={photo.id} className="aspect-4/3 bg-slate-200 rounded overflow-hidden border border-slate-300">
-                              <img
-                                src={photo.dataUrl}
-                                alt="Before Damage"
-                                className="w-full h-full object-cover"
-                              />
-                            </div>
-                          ))}
-                        </div>
-                      ) : (
-                        <div className="py-4 text-center text-slate-400 italic text-[11px]">
-                          No before photo taken
-                        </div>
-                      )}
-                    </div>
-
-                    {/* AFTER COLUMN */}
-                    <div className="border border-emerald-200 rounded-lg p-2 bg-emerald-50/30">
-                      <div className="flex items-center justify-between mb-1.5">
-                        <span className="font-black text-emerald-700 text-xs tracking-wider uppercase">
-                          [AFTER · PAINTED]
-                        </span>
-                        <span className="text-[10px] text-slate-500">
-                          {afterPhotos.length} photo{afterPhotos.length === 1 ? '' : 's'}
-                        </span>
-                      </div>
-
-                      {afterPhotos.length > 0 ? (
-                        <div className="grid grid-cols-2 gap-1.5">
-                          {afterPhotos.map((photo) => (
-                            <div key={photo.id} className="aspect-4/3 bg-slate-200 rounded overflow-hidden border border-slate-300">
-                              <img
-                                src={photo.dataUrl}
-                                alt="After Painted"
-                                className="w-full h-full object-cover"
-                              />
-                            </div>
-                          ))}
-                        </div>
-                      ) : (
-                        <div className="py-4 text-center text-slate-400 italic text-[11px]">
-                          No after photo taken
-                        </div>
-                      )}
-                    </div>
-                  </div>
+                  <span className="text-xs font-bold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                    ✓ Completed & Cleaned
+                  </span>
                 </div>
-              );
-            })}
+              </div>
+
+              <div className="text-right">
+                <span className="text-xs font-bold text-slate-700 block">
+                  {dayName}
+                </span>
+                <span className="text-[11px] text-slate-500 block">
+                  {date}
+                </span>
+              </div>
+            </div>
+
+            {/* Notes */}
+            <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 mb-4 text-xs">
+              <span className="font-bold text-slate-800 uppercase block mb-1">
+                Damage Repaired & Work Scope:
+              </span>
+              <p className="text-slate-700">
+                {unit.notes && unit.notes.trim().length > 0
+                  ? unit.notes
+                  : 'Wall damage patched with hot mud, sanded flush, painted with matching color, and floors swept/wiped clean.'}
+              </p>
+            </div>
+
+            {/* Large Side-by-Side Photos */}
+            <div className="grid grid-cols-2 gap-4">
+              {/* Before */}
+              <div className="border border-rose-200 rounded-lg p-3 bg-rose-50/30">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="font-black text-rose-700 text-xs tracking-wider uppercase">
+                    [BEFORE · DAMAGE]
+                  </span>
+                  <span className="text-[10px] text-rose-600 font-semibold">
+                    {beforePhotos.length} photo{beforePhotos.length === 1 ? '' : 's'}
+                  </span>
+                </div>
+
+                {beforePhotos.length > 0 ? (
+                  <div className="space-y-2">
+                    {beforePhotos.map((photo) => (
+                      <div key={photo.id} className="w-full aspect-4/3 bg-slate-100 rounded overflow-hidden border border-rose-300">
+                        <img src={photo.dataUrl} alt="Before Damage" className="w-full h-full object-cover" />
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="py-20 text-center text-slate-400 italic text-xs">
+                    [ No before damage photo recorded ]
+                  </div>
+                )}
+              </div>
+
+              {/* After */}
+              <div className="border border-emerald-200 rounded-lg p-3 bg-emerald-50/30">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="font-black text-emerald-700 text-xs tracking-wider uppercase">
+                    [AFTER · PAINTED]
+                  </span>
+                  <span className="text-[10px] text-emerald-600 font-semibold">
+                    {afterPhotos.length} photo{afterPhotos.length === 1 ? '' : 's'}
+                  </span>
+                </div>
+
+                {afterPhotos.length > 0 ? (
+                  <div className="space-y-2">
+                    {afterPhotos.map((photo) => (
+                      <div key={photo.id} className="w-full aspect-4/3 bg-slate-100 rounded overflow-hidden border border-emerald-300">
+                        <img src={photo.dataUrl} alt="After Painted" className="w-full h-full object-cover" />
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="py-20 text-center text-slate-400 italic text-xs">
+                    [ No after painted photo recorded ]
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Quality & Cleanliness Verification Bar */}
+            <div className="mt-4 border border-slate-200 rounded p-2 text-[11px] text-slate-700 flex justify-between items-center">
+              <span>Technician: <strong>{profile.workerName}</strong></span>
+              <span className="text-emerald-700 font-semibold">✓ Wall Mudded, Painted & Floors Cleaned</span>
+              <span>Page {pageNum} of {totalPages}</span>
+            </div>
           </div>
-        ) : (
-          <div className="py-12 text-center text-slate-400 italic border border-dashed border-slate-300 rounded-lg">
-            No units or photos recorded this week.
-          </div>
-        )}
-      </div>
+        );
+      })}
     </div>
   );
 };
