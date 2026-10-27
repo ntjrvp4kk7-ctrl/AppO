@@ -14,30 +14,41 @@ import {
   Loader2,
   Calendar,
   Share2,
+  Smartphone,
+  ExternalLink,
+  Printer,
+  Sparkles,
 } from 'lucide-react';
 import { DailyWorkLog, UserAccount, UnitPhoto } from '../types/worklog';
 import { getWeekRange, shiftWeek, formatShortDate } from '../utils/dateUtils';
 import { generateBossEmailContent } from '../utils/storage';
 import { ReportPreviewModal } from './ReportPreviewModal';
 import { downloadOrShareWeeklyPdf } from '../utils/pdfGenerator';
+import {
+  downloadStandaloneHtmlReport,
+  openStandaloneHtmlReport,
+} from '../utils/htmlReportGenerator';
 
 interface WeeklyReportTabProps {
-  currentDate: string;
+  currentDate?: string;
   logs: DailyWorkLog[];
   profile: UserAccount;
   selectedWeekStart?: string;
   onWeekChange?: (weekStart: string) => void;
-  onSelectDate: (dateStr: string) => void;
-  onOpenPhotoViewer: (photo: UnitPhoto, unitLabel: string) => void;
-  onSaveLogs: (logs: DailyWorkLog[]) => void;
+  onSelectWeekStart?: (weekStart: string) => void;
+  onSelectDate?: (dateStr: string) => void;
+  onOpenPhotoViewer?: (photo: UnitPhoto, unitLabel: string) => void;
+  onSaveLogs?: (logs: DailyWorkLog[]) => void;
+  onOpenAuth?: () => void;
 }
 
 export const WeeklyReportTab: React.FC<WeeklyReportTabProps> = ({
-  currentDate,
+  currentDate = '',
   logs,
   profile,
   selectedWeekStart,
   onWeekChange,
+  onSelectWeekStart,
   onSelectDate,
   onOpenPhotoViewer,
   onSaveLogs,
@@ -50,6 +61,7 @@ export const WeeklyReportTab: React.FC<WeeklyReportTabProps> = ({
   const setWeekStart = (w: string) => {
     setInternalWeekStart(w);
     if (onWeekChange) onWeekChange(w);
+    if (onSelectWeekStart) onSelectWeekStart(w);
   };
 
   const [expandedDay, setExpandedDay] = useState<string | null>(null);
@@ -59,6 +71,7 @@ export const WeeklyReportTab: React.FC<WeeklyReportTabProps> = ({
   const [signerName, setSignerName] = useState(profile.bossName);
   const [isDownloadingPdf, setIsDownloadingPdf] = useState(false);
   const [pdfDownloadedStatus, setPdfDownloadedStatus] = useState<string | null>(null);
+  const [htmlDownloadedStatus, setHtmlDownloadedStatus] = useState<string | null>(null);
 
   const weekRange = getWeekRange(weekStart);
   const dates = weekRange.dates;
@@ -86,6 +99,30 @@ export const WeeklyReportTab: React.FC<WeeklyReportTabProps> = ({
     }
   });
 
+  // Action 1: Standalone HTML report for Android Boss
+  const handleDownloadHtmlReport = () => {
+    try {
+      downloadStandaloneHtmlReport({
+        dates,
+        logs,
+        profile,
+        supervisorSignature: isWeekApproved
+          ? {
+              signedBy: signerName || profile.bossName,
+              signedAt: new Date().toISOString(),
+            }
+          : undefined,
+      });
+      setHtmlDownloadedStatus('Saved Web Report!');
+      setTimeout(() => setHtmlDownloadedStatus(null), 3000);
+    } catch (err) {
+      console.error('Failed to export HTML report:', err);
+      setHtmlDownloadedStatus('Failed');
+      setTimeout(() => setHtmlDownloadedStatus(null), 3000);
+    }
+  };
+
+  // Action 2: Direct PDF download
   const handleDownloadPdf = async () => {
     try {
       setIsDownloadingPdf(true);
@@ -139,7 +176,9 @@ export const WeeklyReportTab: React.FC<WeeklyReportTabProps> = ({
       return l;
     });
 
-    onSaveLogs(updated);
+    if (onSaveLogs) {
+      onSaveLogs(updated);
+    }
     setShowSignoffModal(false);
   };
 
@@ -238,37 +277,45 @@ export const WeeklyReportTab: React.FC<WeeklyReportTabProps> = ({
         </div>
       </div>
 
-      {/* iOS Inset Group: Export Actions */}
+      {/* iOS Inset Group: Export Actions Specifically Designed for Boss */}
       <div className="space-y-1.5">
-        <div className="px-4">
+        <div className="px-4 flex items-center justify-between">
           <span className="text-[12px] font-semibold uppercase tracking-wider text-[#8e8e93]">
             Export & Send to Boss ({profile.bossName})
           </span>
+          <span className="text-[11px] text-[#0a84ff] font-medium">Android Friendly</span>
         </div>
 
         <div className="bg-[#1c1c1e] rounded-[16px] border border-[#2c2c2e]/70 overflow-hidden divide-y divide-[#38383a]/40 shadow-sm">
-          {/* Primary Row: Direct PDF Download */}
+          {/* PRIMARY OPTION: Standalone Web Report (.html) */}
           <div
-            onClick={handleDownloadPdf}
-            className="flex items-center justify-between px-4 py-3 cursor-pointer hover:bg-[#252528] active:bg-[#2c2c2e] transition-colors"
+            onClick={handleDownloadHtmlReport}
+            className="flex items-center justify-between px-4 py-3 cursor-pointer hover:bg-[#252528] active:bg-[#2c2c2e] transition-colors bg-gradient-to-r from-[#0a84ff]/10 to-transparent"
           >
             <div className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-[8px] bg-[#ff453a]/20 text-[#ff453a] flex items-center justify-center font-bold">
-                <Download className="w-4 h-4 stroke-[2.2]" />
+              <div className="w-8 h-8 rounded-[8px] bg-[#0a84ff] text-white flex items-center justify-center font-bold shadow-sm">
+                <Smartphone className="w-4 h-4 stroke-[2.5]" />
               </div>
               <div>
-                <span className="text-[15px] font-semibold text-white block">Download PDF Report</span>
-                <span className="text-[11px] text-[#8e8e93]">Includes weekly hours & all unit photos</span>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[15px] font-semibold text-white block">
+                    Save Web Report (.html)
+                  </span>
+                  <span className="text-[9px] font-bold text-[#0a84ff] bg-[#0a84ff]/20 px-1.5 py-0.5 rounded">
+                    BEST FOR ANDROID
+                  </span>
+                </div>
+                <span className="text-[11px] text-[#8e8e93]">
+                  Boss opens in Android Chrome • All photos visible & unstretched
+                </span>
               </div>
             </div>
 
             <div>
-              {isDownloadingPdf ? (
-                <Loader2 className="w-4 h-4 text-[#0a84ff] animate-spin" />
-              ) : pdfDownloadedStatus ? (
+              {htmlDownloadedStatus ? (
                 <span className="text-[12px] font-semibold text-[#30d158] flex items-center gap-1">
                   <Check className="w-3.5 h-3.5" />
-                  {pdfDownloadedStatus}
+                  {htmlDownloadedStatus}
                 </span>
               ) : (
                 <span className="text-[13px] font-semibold text-[#0a84ff]">Download</span>
@@ -282,128 +329,202 @@ export const WeeklyReportTab: React.FC<WeeklyReportTabProps> = ({
             className="flex items-center justify-between px-4 py-3 cursor-pointer hover:bg-[#252528] active:bg-[#2c2c2e] transition-colors"
           >
             <div className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-[8px] bg-[#0a84ff]/20 text-[#0a84ff] flex items-center justify-center font-bold">
+              <div className="w-8 h-8 rounded-[8px] bg-[#30d158]/20 text-[#30d158] flex items-center justify-center font-bold">
                 <FileText className="w-4 h-4 stroke-[2.2]" />
               </div>
               <div>
-                <span className="text-[15px] font-semibold text-white block">View & Scroll Report</span>
-                <span className="text-[11px] text-[#8e8e93]">Interactive multi-page preview</span>
+                <span className="text-[15px] font-semibold text-white block">View & Print Report</span>
+                <span className="text-[11px] text-[#8e8e93]">Scroll all pages with full photos + 1-tap print</span>
               </div>
             </div>
 
             <ChevronRight className="w-4 h-4 text-[#8e8e93]" />
           </div>
 
-          {/* Row 3: Email Supervisor */}
+          {/* Row 3: Direct PDF Download */}
           <div
-            onClick={handleEmailBoss}
+            onClick={handleDownloadPdf}
             className="flex items-center justify-between px-4 py-3 cursor-pointer hover:bg-[#252528] active:bg-[#2c2c2e] transition-colors"
           >
             <div className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-[8px] bg-[#5856d6]/20 text-[#5856d6] flex items-center justify-center font-bold">
-                <Mail className="w-4 h-4 stroke-[2.2]" />
+              <div className="w-8 h-8 rounded-[8px] bg-[#ff453a]/20 text-[#ff453a] flex items-center justify-center font-bold">
+                <Download className="w-4 h-4 stroke-[2.2]" />
               </div>
               <div>
-                <span className="text-[15px] font-semibold text-white block">Email Boss</span>
-                <span className="text-[11px] text-[#8e8e93]">{profile.bossEmail || 'Send prefilled email'}</span>
+                <span className="text-[15px] font-semibold text-white block">Download PDF Document</span>
+                <span className="text-[11px] text-[#8e8e93]">Page 1 for hours + unit pages</span>
               </div>
             </div>
 
-            <ChevronRight className="w-4 h-4 text-[#8e8e93]" />
+            <div>
+              {isDownloadingPdf ? (
+                <Loader2 className="w-4 h-4 text-[#0a84ff] animate-spin" />
+              ) : pdfDownloadedStatus ? (
+                <span className="text-[12px] font-semibold text-[#30d158] flex items-center gap-1">
+                  <Check className="w-3.5 h-3.5" />
+                  {pdfDownloadedStatus}
+                </span>
+              ) : (
+                <span className="text-[13px] font-semibold text-[#0a84ff]">Save PDF</span>
+              )}
+            </div>
           </div>
 
-          {/* Row 4: Copy Summary */}
+          {/* Row 4: Copy SMS / WhatsApp Text Summary */}
           <div
             onClick={handleCopySummary}
             className="flex items-center justify-between px-4 py-3 cursor-pointer hover:bg-[#252528] active:bg-[#2c2c2e] transition-colors"
           >
             <div className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-[8px] bg-[#636366]/30 text-white flex items-center justify-center font-bold">
+              <div className="w-8 h-8 rounded-[8px] bg-[#ff9f0a]/20 text-[#ff9f0a] flex items-center justify-center font-bold">
                 <Copy className="w-4 h-4 stroke-[2.2]" />
               </div>
               <div>
-                <span className="text-[15px] font-semibold text-white block">Copy Text Summary</span>
-                <span className="text-[11px] text-[#8e8e93]">Paste into iMessage or SMS</span>
+                <span className="text-[15px] font-semibold text-white block">Copy Text for SMS / WhatsApp</span>
+                <span className="text-[11px] text-[#8e8e93]">Formatted summary to text your supervisor</span>
               </div>
             </div>
 
             {copiedText ? (
-              <span className="text-[12px] font-semibold text-[#30d158]">Copied!</span>
+              <span className="text-[12px] font-semibold text-[#30d158] flex items-center gap-1">
+                <Check className="w-3.5 h-3.5" />
+                Copied
+              </span>
             ) : (
-              <ChevronRight className="w-4 h-4 text-[#8e8e93]" />
+              <span className="text-[13px] font-semibold text-[#0a84ff]">Copy</span>
             )}
+          </div>
+
+          {/* Row 5: Email Supervisor */}
+          <div
+            onClick={handleEmailBoss}
+            className="flex items-center justify-between px-4 py-3 cursor-pointer hover:bg-[#252528] active:bg-[#2c2c2e] transition-colors"
+          >
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-[8px] bg-[#0a84ff]/20 text-[#0a84ff] flex items-center justify-center font-bold">
+                <Mail className="w-4 h-4 stroke-[2.2]" />
+              </div>
+              <div>
+                <span className="text-[15px] font-semibold text-white block">Email to {profile.bossName}</span>
+                <span className="text-[11px] text-[#8e8e93] truncate max-w-[200px]">
+                  {profile.bossEmail || 'Send weekly breakdown via email'}
+                </span>
+              </div>
+            </div>
+
+            <ChevronRight className="w-4 h-4 text-[#8e8e93]" />
           </div>
         </div>
       </div>
 
-      {/* Daily Shifts & Units Inset Table */}
+      {/* iOS Inset Group: Day-by-Day Breakdown */}
       <div className="space-y-1.5">
         <div className="px-4">
           <span className="text-[12px] font-semibold uppercase tracking-wider text-[#8e8e93]">
-            Shifts & Units This Week
+            Daily Breakdown & Units
           </span>
         </div>
 
         <div className="bg-[#1c1c1e] rounded-[16px] border border-[#2c2c2e]/70 overflow-hidden divide-y divide-[#38383a]/40 shadow-sm">
           {dates.map((dateStr) => {
             const log = logs.find((l) => l.date === dateStr);
-            const dayName = new Date(dateStr + 'T12:00:00').toLocaleDateString('en-US', {
-              weekday: 'short',
-              month: 'short',
-              day: 'numeric',
-            });
             const isExpanded = expandedDay === dateStr;
+            const [y, m, d] = dateStr.split('-').map(Number);
+            const dayObj = new Date(y, m - 1, d);
+            const dayName = dayObj.toLocaleDateString('en-US', { weekday: 'short' });
+            const monthDay = dayObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+
+            const hours = log?.time.totalHours || 0;
+            const units = log?.units || [];
+            const hasActivity = hours > 0 || units.length > 0;
 
             return (
               <div key={dateStr} className="transition-colors">
+                {/* Day Header Row */}
                 <div
                   onClick={() => setExpandedDay(isExpanded ? null : dateStr)}
-                  className="px-4 py-3 flex items-center justify-between cursor-pointer select-none hover:bg-[#252528] active:bg-[#2c2c2e]"
+                  className="flex items-center justify-between px-4 py-3 cursor-pointer hover:bg-[#252528] active:bg-[#2c2c2e] transition-colors select-none"
                 >
                   <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-[8px] bg-[#2c2c2e] flex items-center justify-center text-[#8e8e93] font-semibold text-xs">
-                      {dayName.slice(0, 3)}
+                    <div
+                      className={`w-9 h-9 rounded-full flex flex-col items-center justify-center text-center font-mono-numbers ${
+                        hasActivity ? 'bg-[#0a84ff]/20 text-[#0a84ff]' : 'bg-[#2c2c2e] text-[#8e8e93]'
+                      }`}
+                    >
+                      <span className="text-[10px] font-bold leading-none">{dayName.slice(0, 3)}</span>
+                      <span className="text-[12px] font-black leading-none mt-0.5">{dayObj.getDate()}</span>
                     </div>
+
                     <div>
-                      <span className="text-[14px] font-semibold text-white block">{dayName}</span>
+                      <div className="flex items-center gap-2">
+                        <span className="text-[15px] font-semibold text-white">{monthDay}</span>
+                        {log?.status === 'Approved' && (
+                          <span className="text-[10px] font-bold text-[#30d158] bg-[#30d158]/15 px-1.5 py-0.2 rounded">
+                            Approved
+                          </span>
+                        )}
+                      </div>
                       <span className="text-[11px] text-[#8e8e93]">
-                        {log ? `${log.units.length} unit${log.units.length === 1 ? '' : 's'}` : 'Off Duty'}
+                        {hasActivity
+                          ? `${log?.time.startTime || '--:--'} – ${log?.time.endTime || '--:--'} • ${units.length} unit${
+                              units.length === 1 ? '' : 's'
+                            }`
+                          : 'Off Duty'}
                       </span>
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-3">
-                    {log ? (
-                      <span className="text-[15px] font-bold text-white font-mono-numbers">
-                        {log.time.totalHours.toFixed(1)} <span className="text-[12px] font-normal text-[#8e8e93]">hrs</span>
-                      </span>
+                  <div className="flex items-center gap-2.5">
+                    <span className="text-[14px] font-bold font-mono-numbers text-white">
+                      {hours > 0 ? `${hours.toFixed(1)}h` : '—'}
+                    </span>
+                    {isExpanded ? (
+                      <ChevronUp className="w-4 h-4 text-[#8e8e93]" />
                     ) : (
-                      <span className="text-[12px] text-[#636366] font-mono-numbers">0.0</span>
+                      <ChevronDown className="w-4 h-4 text-[#8e8e93]" />
                     )}
-                    <div className="text-[#8e8e93]">
-                      {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-                    </div>
                   </div>
                 </div>
 
+                {/* Expanded Day Details */}
                 {isExpanded && (
-                  <div className="px-4 py-3 bg-[#161618] border-t border-[#2c2c2e] space-y-3">
-                    {log && log.units.length > 0 ? (
+                  <div className="px-4 pb-4 pt-1 bg-[#161618] border-t border-[#2c2c2e]/60 space-y-3">
+                    {/* Time Summary */}
+                    {hasActivity && log?.time && (
+                      <div className="p-2.5 bg-[#1c1c1e] rounded-[12px] border border-[#2c2c2e] flex justify-between items-center text-xs">
+                        <div className="flex items-center gap-2 text-[#8e8e93]">
+                          <Clock className="w-3.5 h-3.5" />
+                          <span>
+                            {log.time.startTime} to {log.time.endTime} ({log.time.lunchDeductionMinutes}m lunch)
+                          </span>
+                        </div>
+                        <span className="font-bold text-white font-mono-numbers">
+                          {log.time.totalHours.toFixed(1)} net hrs
+                        </span>
+                      </div>
+                    )}
+
+                    {/* Units Serviced */}
+                    {units.length > 0 ? (
                       <div className="space-y-2">
-                        {log.units.map((unit) => {
+                        <span className="text-[11px] font-semibold uppercase tracking-wider text-[#8e8e93] block">
+                          Units Serviced ({units.length}):
+                        </span>
+
+                        {units.map((unit) => {
                           const before = unit.photos.filter((p) => p.type === 'before');
                           const after = unit.photos.filter((p) => p.type === 'after');
 
                           return (
                             <div
                               key={unit.id}
-                              className="p-3 bg-[#1c1c1e] rounded-[12px] border border-[#2c2c2e] space-y-1.5"
+                              className="p-3 bg-[#1c1c1e] rounded-[12px] border border-[#2c2c2e] space-y-2"
                             >
                               <div className="flex justify-between items-center text-[13px] font-bold text-white">
                                 <span>{unit.unitNumber || 'Unit'}</span>
                                 {unit.paintColor && (
                                   <span className="text-[11px] font-normal text-[#8e8e93]">
-                                    {unit.paintColor}
+                                    Paint: {unit.paintColor}
                                   </span>
                                 )}
                               </div>
@@ -411,29 +532,37 @@ export const WeeklyReportTab: React.FC<WeeklyReportTabProps> = ({
                                 <p className="text-[12px] text-[#8e8e93]">{unit.notes}</p>
                               )}
 
-                              {/* Mini Photo Proof Strip */}
+                              {/* Photo Proof Strip (Displays ALL photos without slicing!) */}
                               {(before.length > 0 || after.length > 0) && (
-                                <div className="flex items-center gap-2 pt-1">
-                                  <span className="text-[10px] font-semibold text-[#8e8e93]">
-                                    Photos ({before.length + after.length}):
-                                  </span>
-                                  <div className="flex gap-1.5 overflow-x-auto">
-                                    {before.slice(0, 3).map((p) => (
+                                <div className="space-y-1.5 pt-1">
+                                  <div className="flex justify-between items-center text-[10px] font-semibold text-[#8e8e93]">
+                                    <span>All Photos ({before.length + after.length}):</span>
+                                    <span>Tap to view full resolution</span>
+                                  </div>
+
+                                  <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-none">
+                                    {before.map((p, idx) => (
                                       <div
                                         key={p.id}
-                                        onClick={() => onOpenPhotoViewer(p, unit.unitNumber)}
-                                        className="w-10 h-10 rounded-[6px] overflow-hidden bg-black border border-[#ff453a]/40 shrink-0 cursor-pointer"
+                                        onClick={() => onOpenPhotoViewer && onOpenPhotoViewer(p, `${unit.unitNumber} (Before #${idx + 1})`)}
+                                        className="w-16 h-16 rounded-[8px] overflow-hidden bg-black border border-[#ff453a]/60 shrink-0 cursor-pointer relative active:scale-95 transition-transform"
                                       >
                                         <img src={p.dataUrl} alt="" className="w-full h-full object-cover" />
+                                        <span className="absolute bottom-0 inset-x-0 bg-black/80 text-[8px] text-[#ff453a] font-bold text-center py-0.5">
+                                          Before #{idx + 1}
+                                        </span>
                                       </div>
                                     ))}
-                                    {after.slice(0, 3).map((p) => (
+                                    {after.map((p, idx) => (
                                       <div
                                         key={p.id}
-                                        onClick={() => onOpenPhotoViewer(p, unit.unitNumber)}
-                                        className="w-10 h-10 rounded-[6px] overflow-hidden bg-black border border-[#30d158]/40 shrink-0 cursor-pointer"
+                                        onClick={() => onOpenPhotoViewer && onOpenPhotoViewer(p, `${unit.unitNumber} (After #${idx + 1})`)}
+                                        className="w-16 h-16 rounded-[8px] overflow-hidden bg-black border border-[#30d158]/60 shrink-0 cursor-pointer relative active:scale-95 transition-transform"
                                       >
                                         <img src={p.dataUrl} alt="" className="w-full h-full object-cover" />
+                                        <span className="absolute bottom-0 inset-x-0 bg-black/80 text-[8px] text-[#30d158] font-bold text-center py-0.5">
+                                          After #{idx + 1}
+                                        </span>
                                       </div>
                                     ))}
                                   </div>
@@ -449,10 +578,10 @@ export const WeeklyReportTab: React.FC<WeeklyReportTabProps> = ({
 
                     <div className="flex justify-end pt-1">
                       <button
-                        onClick={() => onSelectDate(dateStr)}
-                        className="px-3 py-1.5 bg-[#2c2c2e] hover:bg-[#38383a] text-[#0a84ff] rounded-[9px] text-[12px] font-semibold transition-colors cursor-pointer"
+                        onClick={() => onSelectDate && onSelectDate(dateStr)}
+                        className="text-[12px] font-semibold text-[#0a84ff] hover:underline"
                       >
-                        Edit {dayName}
+                        Edit This Day's Log →
                       </button>
                     </div>
                   </div>
@@ -463,76 +592,74 @@ export const WeeklyReportTab: React.FC<WeeklyReportTabProps> = ({
         </div>
       </div>
 
-      {/* iOS Bottom Sheet: Supervisor Sign-Off Modal */}
+      {/* Supervisor Sign-Off iOS Modal */}
       {showSignoffModal && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-150">
-          <div className="w-full max-w-sm bg-[#1c1c1e] border-t sm:border border-[#38383a] rounded-t-[24px] sm:rounded-[20px] p-5 space-y-4 shadow-2xl">
-            {/* Grab Handle */}
-            <div className="w-9 h-1 bg-[#8e8e93]/40 rounded-full mx-auto -mt-2 mb-2 sm:hidden" />
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/75 backdrop-blur-sm animate-in fade-in duration-150 p-0 sm:p-4">
+          <div className="w-full max-w-sm bg-[#1c1c1e] rounded-t-[24px] sm:rounded-[20px] border border-[#2c2c2e] p-5 space-y-4 shadow-2xl">
+            {/* Grabber */}
+            <div className="w-9 h-1 rounded-full bg-[#3a3a3c] mx-auto sm:hidden" />
 
-            <div className="flex items-center gap-2 text-[#30d158]">
-              <UserCheck className="w-5 h-5 stroke-[2.5]" />
-              <h3 className="text-[17px] font-bold text-white">Supervisor Approval</h3>
+            <div className="text-center space-y-1">
+              <h3 className="text-[18px] font-bold text-white tracking-tight">
+                Supervisor Approval
+              </h3>
+              <p className="text-[12px] text-[#8e8e93]">
+                Approve {totalHours.toFixed(1)} hours and {totalUnitsCount} completed units for {dates[0]} to {dates[6]}.
+              </p>
             </div>
-            <p className="text-[13px] text-[#8e8e93]">
-              Verify and approve {profile.workerName}'s timesheet ({totalHours.toFixed(1)} hrs, {totalUnitsCount} units finished) for {dates[0]} to {dates[6]}.
-            </p>
 
-            <div>
-              <label className="block text-[12px] font-semibold text-[#8e8e93] mb-1.5">
+            <div className="space-y-1.5">
+              <label className="text-[11px] font-semibold uppercase tracking-wider text-[#8e8e93]">
                 Supervisor Name
               </label>
               <input
                 type="text"
                 value={signerName}
                 onChange={(e) => setSignerName(e.target.value)}
-                className="w-full bg-[#2c2c2e] border border-[#3a3a3c] rounded-[12px] px-3.5 py-2.5 text-[15px] text-white focus:outline-none focus:border-[#0a84ff]"
+                placeholder="e.g. Jermaine"
+                className="w-full h-11 px-3.5 bg-[#2c2c2e] rounded-[10px] text-[14px] text-white border border-[#3a3a3c] focus:outline-none focus:border-[#0a84ff]"
               />
             </div>
 
-            <div className="flex items-center justify-end gap-2 pt-2 border-t border-[#38383a]/60">
+            <div className="grid grid-cols-2 gap-2.5 pt-2">
               <button
                 type="button"
                 onClick={() => setShowSignoffModal(false)}
-                className="px-4 py-2 text-[14px] text-[#8e8e93] hover:text-white cursor-pointer font-medium"
+                className="h-11 rounded-[12px] bg-[#2c2c2e] text-[#f2f2f7] font-semibold text-[14px] hover:bg-[#38383a] active:scale-98 transition-all"
               >
                 Cancel
               </button>
               <button
                 type="button"
                 onClick={handleApproveWeek}
-                className="px-5 py-2.5 bg-[#30d158] hover:bg-[#28b84d] text-black font-bold text-[14px] rounded-[12px] shadow-sm flex items-center gap-1.5 transition-colors cursor-pointer active:scale-95"
+                className="h-11 rounded-[12px] bg-[#30d158] text-black font-bold text-[14px] hover:bg-[#28b84d] active:scale-98 transition-all shadow-md shadow-[#30d158]/20"
               >
-                <Check className="w-4 h-4 stroke-[3]" />
-                Approve Week
+                Sign & Approve
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Report Preview Modal */}
-      <ReportPreviewModal
-        isOpen={showPreviewModal}
-        dates={dates}
-        logs={logs}
-        profile={profile}
-        supervisorSignature={
-          isWeekApproved
-            ? {
-                signedBy: signerName || profile.bossName,
-                signedAt: new Date().toISOString(),
-              }
-            : undefined
-        }
-        onClose={() => setShowPreviewModal(false)}
-        onPrint={() => {
-          setShowPreviewModal(false);
-          setTimeout(() => {
-            window.print();
-          }, 150);
-        }}
-      />
+      {/* Full Multi-Page Interactive Preview Modal */}
+      {showPreviewModal && (
+        <ReportPreviewModal
+          isOpen={showPreviewModal}
+          dates={dates}
+          logs={logs}
+          profile={profile}
+          supervisorSignature={
+            isWeekApproved
+              ? {
+                  signedBy: signerName || profile.bossName,
+                  signedAt: new Date().toISOString(),
+                }
+              : undefined
+          }
+          onClose={() => setShowPreviewModal(false)}
+          onPrint={() => window.print()}
+        />
+      )}
     </div>
   );
 };

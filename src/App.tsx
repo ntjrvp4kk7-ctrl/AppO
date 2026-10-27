@@ -430,10 +430,18 @@ export default function App() {
           {activeTab === 'weekly' && (
             <div className="animate-in fade-in duration-200">
               <WeeklyReportTab
+                currentDate={currentDate}
                 logs={logs}
                 selectedWeekStart={selectedWeekStart}
                 onSelectWeekStart={setSelectedWeekStart}
+                onWeekChange={setSelectedWeekStart}
                 profile={auth.user}
+                onSelectDate={(d) => {
+                  setCurrentDate(d);
+                  setActiveTab('today');
+                }}
+                onOpenPhotoViewer={(p, l) => setViewingPhoto({ photo: p, unitLabel: l })}
+                onSaveLogs={(newLogs) => setLogs(newLogs)}
                 onOpenAuth={() => setIsAuthModalOpen(true)}
               />
             </div>

@@ -1,7 +1,25 @@
 import React, { useState } from 'react';
-import { X, Download, Share2, Check, FileText, ExternalLink, Loader2 } from 'lucide-react';
+import {
+  X,
+  Download,
+  Share2,
+  Check,
+  FileText,
+  ExternalLink,
+  Loader2,
+  Printer,
+  Copy,
+  Smartphone,
+  Globe,
+  Mail,
+} from 'lucide-react';
 import { DailyWorkLog, UserAccount, UnitWork } from '../types/worklog';
 import { downloadOrShareWeeklyPdf, generateWeeklyReportPdf } from '../utils/pdfGenerator';
+import {
+  downloadStandaloneHtmlReport,
+  openStandaloneHtmlReport,
+} from '../utils/htmlReportGenerator';
+import { generateBossEmailContent } from '../utils/storage';
 
 interface ReportPreviewModalProps {
   isOpen: boolean;
@@ -29,9 +47,11 @@ export const ReportPreviewModal: React.FC<ReportPreviewModalProps> = ({
   profile,
   supervisorSignature,
   onClose,
+  onPrint,
 }) => {
   const [isExporting, setIsExporting] = useState(false);
   const [exportStatus, setExportStatus] = useState<string | null>(null);
+  const [copiedText, setCopiedText] = useState(false);
 
   if (!isOpen) return null;
 
@@ -65,10 +85,55 @@ export const ReportPreviewModal: React.FC<ReportPreviewModalProps> = ({
 
   const totalPages = unitList.length > 0 ? 1 + unitList.length : 2;
 
+  // Option 1: Standalone HTML report for Android Boss (Guaranteed 100% reliable)
+  const handleDownloadHtmlReport = () => {
+    try {
+      downloadStandaloneHtmlReport({
+        dates,
+        logs,
+        profile,
+        supervisorSignature,
+      });
+      setExportStatus('Saved Web Report (.html)!');
+      setTimeout(() => setExportStatus(null), 3000);
+    } catch (err) {
+      console.error('Failed to export HTML report:', err);
+      setExportStatus('Export failed');
+      setTimeout(() => setExportStatus(null), 3000);
+    }
+  };
+
+  const handleOpenHtmlReportTab = () => {
+    openStandaloneHtmlReport({
+      dates,
+      logs,
+      profile,
+      supervisorSignature,
+    });
+  };
+
+  // Option 2: Native Browser Print / Save as PDF
+  const handleNativePrint = () => {
+    if (onPrint) {
+      onPrint();
+    } else {
+      window.print();
+    }
+  };
+
+  // Option 3: Copy Formatted Text for SMS / WhatsApp / Email
+  const handleCopyText = () => {
+    const emailData = generateBossEmailContent(dates, logs, profile);
+    navigator.clipboard.writeText(emailData.body);
+    setCopiedText(true);
+    setTimeout(() => setCopiedText(false), 2500);
+  };
+
+  // Option 4: Direct PDF file download
   const handleDownloadPdf = async () => {
     try {
       setIsExporting(true);
-      setExportStatus('Generating PDF...');
+      setExportStatus('Building PDF...');
       const res = await downloadOrShareWeeklyPdf({
         dates,
         logs,
@@ -90,108 +155,122 @@ export const ReportPreviewModal: React.FC<ReportPreviewModalProps> = ({
     }
   };
 
-  const handleOpenPdfBlob = async () => {
-    try {
-      setIsExporting(true);
-      setExportStatus('Preparing view...');
-      const doc = await generateWeeklyReportPdf({
-        dates,
-        logs,
-        profile,
-        supervisorSignature,
-      });
-      const blob = doc.output('blob');
-      const blobUrl = URL.createObjectURL(blob);
-      window.open(blobUrl, '_blank');
-      setExportStatus(null);
-    } catch (err) {
-      console.error('Failed to open PDF:', err);
-      setExportStatus('Error opening');
-      setTimeout(() => setExportStatus(null), 2500);
-    } finally {
-      setIsExporting(false);
-    }
-  };
-
   return (
-    <div className="fixed inset-0 z-50 flex flex-col bg-zinc-950/95 backdrop-blur-md animate-in fade-in duration-150 no-print">
-      {/* Top Header Bar */}
-      <div className="sticky top-0 z-20 bg-zinc-900 border-b border-zinc-800 px-3 sm:px-6 py-3 shadow-lg flex items-center justify-between gap-2">
-        <div className="flex items-center gap-2.5 min-w-0">
-          <div className="w-8 h-8 rounded-lg bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400 shrink-0">
-            <FileText className="w-4 h-4" />
-          </div>
-          <div className="truncate">
-            <h2 className="text-sm font-extrabold text-white truncate">
-              Weekly PDF Report ({totalPages} Pages Total)
-            </h2>
-            <p className="text-[11px] text-zinc-400 truncate">
-              Page 1 for Hours • 1 Page Per Unit ({unitList.length} units with Before & After photos)
-            </p>
-          </div>
-        </div>
-
-        {/* Action Buttons */}
-        <div className="flex items-center gap-2 shrink-0">
-          <button
-            onClick={handleDownloadPdf}
-            disabled={isExporting}
-            className="py-2 px-3.5 bg-emerald-500 hover:bg-emerald-400 text-zinc-950 font-black rounded-xl text-xs active:scale-95 transition-all flex items-center gap-1.5 shadow-md shadow-emerald-500/20 disabled:opacity-50 cursor-pointer"
-          >
-            {isExporting ? (
-              <>
-                <Loader2 className="w-4 h-4 animate-spin" />
-                <span>Generating...</span>
-              </>
-            ) : exportStatus ? (
-              <>
-                <Check className="w-4 h-4 text-zinc-950" />
-                <span>{exportStatus}</span>
-              </>
-            ) : (
-              <>
-                <Download className="w-4 h-4" />
-                <span>Download PDF</span>
-              </>
-            )}
-          </button>
-
-          <button
-            onClick={handleOpenPdfBlob}
-            disabled={isExporting}
-            className="hidden sm:flex py-2 px-3 bg-zinc-800 hover:bg-zinc-750 text-zinc-200 border border-zinc-700 font-semibold rounded-xl text-xs active:scale-95 transition-all items-center gap-1.5 cursor-pointer disabled:opacity-50"
-            title="Open generated PDF file in new browser tab"
-          >
-            <ExternalLink className="w-3.5 h-3.5 text-zinc-400" />
-            <span>Open in Tab</span>
-          </button>
-
+    <div className="fixed inset-0 z-50 flex flex-col bg-black/90 backdrop-blur-2xl animate-in fade-in duration-200 no-print">
+      {/* iOS Modal Navigation Bar */}
+      <div className="sticky top-0 z-30 bg-[#1c1c1e]/90 backdrop-blur-xl border-b border-[#2c2c2e] px-4 py-3 shrink-0">
+        <div className="flex items-center justify-between max-w-4xl mx-auto">
+          {/* Close / Done Button */}
           <button
             onClick={onClose}
-            className="p-2 text-zinc-400 hover:text-white hover:bg-zinc-800 rounded-xl transition-colors cursor-pointer"
-            aria-label="Close Preview"
+            className="text-[16px] font-normal text-[#0a84ff] active:opacity-60 transition-opacity cursor-pointer"
           >
-            <X className="w-5 h-5" />
+            Done
+          </button>
+
+          {/* Title */}
+          <div className="text-center">
+            <h2 className="text-[16px] font-bold text-white tracking-tight">
+              Weekly Report Preview
+            </h2>
+            <p className="text-[11px] text-[#8e8e93]">
+              Page 1 for Hours • {unitList.length} Units with All Photos Uncut
+            </p>
+          </div>
+
+          {/* Quick Print Button */}
+          <button
+            onClick={handleNativePrint}
+            className="text-[15px] font-semibold text-[#0a84ff] flex items-center gap-1 active:opacity-60 transition-opacity cursor-pointer"
+            title="Print or Save as PDF using Chrome native print"
+          >
+            <Printer className="w-4 h-4" />
+            <span className="hidden sm:inline">Print</span>
           </button>
         </div>
-      </div>
 
-      {/* Sub-header banner */}
-      <div className="bg-zinc-900/90 border-b border-zinc-800 px-4 py-2 flex items-center justify-between text-xs text-zinc-400">
-        <span className="font-semibold text-zinc-300">
-          Document Structure: 1 page for hours + 1 full page per unit with photos
-        </span>
-        <span className="text-[11px] text-zinc-500">
-          ↓ Scroll through all {totalPages} pages below
-        </span>
+        {/* Boss Export Action Bar (Specially tuned for sending to Android Supervisor) */}
+        <div className="mt-3 pt-3 border-t border-[#2c2c2e] max-w-4xl mx-auto flex flex-wrap items-center justify-between gap-2.5">
+          <div className="flex items-center gap-2">
+            <span className="text-[11px] font-semibold text-[#8e8e93] uppercase tracking-wider">
+              Send to Boss:
+            </span>
+            {exportStatus && (
+              <span className="text-[11px] font-bold text-[#30d158] bg-[#30d158]/15 px-2 py-0.5 rounded-full">
+                {exportStatus}
+              </span>
+            )}
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            {/* Primary Recommendation for Android: Standalone Web Report */}
+            <button
+              onClick={handleDownloadHtmlReport}
+              className="h-8 px-3 bg-[#0a84ff] hover:bg-[#0070e0] active:scale-95 text-white font-semibold text-[12px] rounded-full flex items-center gap-1.5 shadow-sm transition-all cursor-pointer"
+              title="Download standalone .html report. Opens natively in Android Google Chrome with all full-res photos!"
+            >
+              <Smartphone className="w-3.5 h-3.5" />
+              <span>Web Report (.html for Android)</span>
+            </button>
+
+            {/* Open Full Report in New Tab */}
+            <button
+              onClick={handleOpenHtmlReportTab}
+              className="h-8 px-2.5 bg-[#2c2c2e] hover:bg-[#3a3a3c] active:scale-95 text-[#f2f2f7] font-medium text-[12px] rounded-full flex items-center gap-1.5 border border-[#38383a] transition-all cursor-pointer"
+              title="Open full visual report in new tab"
+            >
+              <ExternalLink className="w-3.5 h-3.5 text-[#8e8e93]" />
+              <span className="hidden sm:inline">Open in Tab</span>
+            </button>
+
+            {/* Copy SMS / Text summary */}
+            <button
+              onClick={handleCopyText}
+              className="h-8 px-2.5 bg-[#2c2c2e] hover:bg-[#3a3a3c] active:scale-95 text-[#f2f2f7] font-medium text-[12px] rounded-full flex items-center gap-1.5 border border-[#38383a] transition-all cursor-pointer"
+              title="Copy formatted hours and unit breakdown to paste into text message or email"
+            >
+              {copiedText ? (
+                <>
+                  <Check className="w-3.5 h-3.5 text-[#30d158]" />
+                  <span className="text-[#30d158]">Copied!</span>
+                </>
+              ) : (
+                <>
+                  <Copy className="w-3.5 h-3.5 text-[#8e8e93]" />
+                  <span>Copy Text</span>
+                </>
+              )}
+            </button>
+
+            {/* Direct PDF export button */}
+            <button
+              onClick={handleDownloadPdf}
+              disabled={isExporting}
+              className="h-8 px-3 bg-[#2c2c2e] hover:bg-[#3a3a3c] active:scale-95 text-white font-medium text-[12px] rounded-full flex items-center gap-1.5 border border-[#38383a] transition-all cursor-pointer disabled:opacity-50"
+              title="Download multi-page PDF document"
+            >
+              {isExporting ? (
+                <>
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  <span>Building...</span>
+                </>
+              ) : (
+                <>
+                  <Download className="w-3.5 h-3.5 text-[#8e8e93]" />
+                  <span>Save PDF</span>
+                </>
+              )}
+            </button>
+          </div>
+        </div>
       </div>
 
       {/* Main Scrollable View for all pages */}
-      <div className="flex-1 overflow-y-auto p-3 sm:p-6 bg-zinc-950/80 flex flex-col items-center gap-8">
+      <div className="flex-1 overflow-y-auto p-4 sm:p-8 bg-black/60 flex flex-col items-center gap-8">
         {/* =========================================================================
             PAGE 1: THE HOURS (WEEKLY HOURS & SIGNATURES)
            ========================================================================= */}
-        <div className="w-full max-w-2xl bg-white text-slate-900 rounded-2xl shadow-2xl p-5 sm:p-8 border border-slate-200 relative">
+        <div className="w-full max-w-2xl bg-white text-slate-900 rounded-[20px] shadow-2xl p-6 sm:p-8 border border-slate-200 relative">
           {/* Top Emerald Accent Ribbon */}
           <div className="h-1.5 bg-emerald-500 rounded-full w-full mb-4" />
 
@@ -199,44 +278,52 @@ export const ReportPreviewModal: React.FC<ReportPreviewModalProps> = ({
           <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b-2 border-slate-900 pb-4 mb-5 gap-3">
             <div>
               <span className="text-[10px] font-black uppercase tracking-wider text-emerald-800 bg-emerald-100 px-2.5 py-0.5 rounded-full border border-emerald-300">
-                PAGE 1 OF {totalPages} · WEEKLY HOURS
+                PAGE 1 OF {totalPages} · TIME & HOURS SUMMARY
               </span>
-              <h1 className="text-xl sm:text-2xl font-black uppercase tracking-tight text-slate-950 mt-1.5">
+              <h1 className="text-2xl sm:text-3xl font-black uppercase tracking-tight text-slate-950 mt-1.5">
                 Weekly Work & Unit Report
               </h1>
-              <p className="text-xs text-slate-600">
-                Technician: <strong className="text-slate-900">{profile.workerName}</strong> • Supervisor: <strong className="text-slate-900">{profile.bossName}</strong>
-              </p>
+              <div className="text-xs text-slate-600 mt-1 space-y-0.5">
+                <p>
+                  Technician: <strong className="text-slate-900 text-sm">{profile.workerName}</strong>
+                  {profile.email && <span className="text-slate-500"> ({profile.email})</span>}
+                </p>
+                <p>
+                  Supervisor: <strong className="text-slate-900">{profile.bossName}</strong>
+                  {profile.bossEmail && <span className="text-slate-500"> ({profile.bossEmail})</span>}
+                </p>
+              </div>
             </div>
-            <div className="bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-left sm:text-right">
+
+            <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 text-left sm:text-right">
               <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
                 Work Week Period
               </span>
-              <span className="text-xs sm:text-sm font-black text-slate-900 block">
+              <span className="text-sm sm:text-base font-black text-slate-900 block mt-0.5">
                 {dates[0]} to {dates[6]}
               </span>
-              <span className="text-[10px] font-semibold text-emerald-700 block mt-0.5">
-                {unitList.length} Units Finished ({totalPages} Pages Total)
+              <span className="text-[11px] font-bold text-emerald-700 block mt-1">
+                ✓ {unitList.length} Units Finished
               </span>
             </div>
           </div>
 
           {/* Section 1: Timesheet Table */}
           <div className="mb-6">
-            <div className="flex justify-between items-center mb-2">
-              <h3 className="text-xs font-black uppercase tracking-wider text-slate-900">
+            <div className="flex items-center justify-between mb-2">
+              <h2 className="text-xs sm:text-sm font-black uppercase tracking-wider text-slate-900">
                 1. Weekly Hours Breakdown
-              </h3>
-              <span className="text-[11px] text-slate-500">
-                Daily clock in / out & 30m lunch deductions
+              </h2>
+              <span className="text-[11px] text-slate-500 font-medium">
+                Standard 30m unpaid lunch break deducted
               </span>
             </div>
 
-            <div className="overflow-x-auto border border-slate-300 rounded-xl">
-              <table className="w-full text-xs border-collapse">
+            <div className="overflow-x-auto border border-slate-300 rounded-xl shadow-sm">
+              <table className="w-full text-xs text-left border-collapse">
                 <thead>
-                  <tr className="bg-slate-100 text-slate-800 border-b border-slate-300">
-                    <th className="py-2.5 px-3 text-left font-bold">Date / Day</th>
+                  <tr className="bg-slate-100 text-slate-700 font-bold border-b border-slate-300 text-[11px] uppercase tracking-wider">
+                    <th className="py-2.5 px-3 text-left">Date / Day</th>
                     <th className="py-2.5 px-2 text-center font-bold">Clock In</th>
                     <th className="py-2.5 px-2 text-center font-bold">Clock Out</th>
                     <th className="py-2.5 px-2 text-center font-bold">Lunch Break</th>
@@ -382,6 +469,7 @@ export const ReportPreviewModal: React.FC<ReportPreviewModalProps> = ({
 
         {/* =========================================================================
             SUBSEQUENT PAGES: 1 DEDICATED FULL PAGE PER UNIT DAY (WITH BEFORE/AFTER)
+            EVERY SINGLE PHOTO IS DISPLAYED — UNGROUPED & FULL RESOLUTION
            ========================================================================= */}
         {unitList.map((item, idx) => {
           const pageNum = 2 + idx;
@@ -392,7 +480,7 @@ export const ReportPreviewModal: React.FC<ReportPreviewModalProps> = ({
           return (
             <div
               key={unit.id + '-' + idx}
-              className="w-full max-w-2xl bg-white text-slate-900 rounded-2xl shadow-2xl p-5 sm:p-8 border border-slate-200 relative"
+              className="w-full max-w-2xl bg-white text-slate-900 rounded-[20px] shadow-2xl p-6 sm:p-8 border border-slate-200 relative"
             >
               {/* Top Accent Ribbon */}
               <div className="h-1.5 bg-rose-500 rounded-full w-full mb-4" />
@@ -457,22 +545,24 @@ export const ReportPreviewModal: React.FC<ReportPreviewModalProps> = ({
                   </div>
 
                   {beforePhotos.length > 0 ? (
-                    <div className="photo-grid photos-container">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       {beforePhotos.map((photo, pIdx) => (
                         <div
                           key={photo.id}
-                          className="w-full min-h-[180px] max-h-[300px] bg-slate-950 rounded-xl overflow-hidden border border-rose-200 shadow-sm relative flex items-center justify-center p-1"
+                          className="w-full bg-slate-950 rounded-xl overflow-hidden border border-rose-200 shadow-sm relative flex flex-col items-center justify-center"
                         >
-                          <img
-                            src={photo.dataUrl}
-                            alt={`Before Damage Photo ${pIdx + 1}`}
-                            className="max-h-[280px] w-auto max-w-full object-contain mx-auto"
-                          />
-                          <div className="absolute top-2 left-2 bg-rose-950/80 border border-rose-400 text-white font-bold text-[10px] px-2 py-0.5 rounded">
+                          <div className="w-full h-[220px] flex items-center justify-center p-1 bg-black">
+                            <img
+                              src={photo.dataUrl}
+                              alt={`Before Damage Photo ${pIdx + 1}`}
+                              className="max-h-full max-w-full object-contain mx-auto"
+                            />
+                          </div>
+                          <div className="absolute top-2 left-2 bg-rose-950/90 border border-rose-400 text-white font-bold text-[10px] px-2 py-0.5 rounded shadow">
                             Photo #{pIdx + 1}
                           </div>
                           {photo.caption && (
-                            <div className="absolute bottom-0 inset-x-0 bg-black/85 px-2.5 py-1 text-[11px] text-white">
+                            <div className="w-full bg-black/90 px-2.5 py-1 text-[11px] text-white border-t border-slate-800">
                               {photo.caption}
                             </div>
                           )}
@@ -498,22 +588,24 @@ export const ReportPreviewModal: React.FC<ReportPreviewModalProps> = ({
                   </div>
 
                   {afterPhotos.length > 0 ? (
-                    <div className="photo-grid photos-container">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       {afterPhotos.map((photo, pIdx) => (
                         <div
                           key={photo.id}
-                          className="w-full min-h-[180px] max-h-[300px] bg-slate-950 rounded-xl overflow-hidden border border-emerald-200 shadow-sm relative flex items-center justify-center p-1"
+                          className="w-full bg-slate-950 rounded-xl overflow-hidden border border-emerald-200 shadow-sm relative flex flex-col items-center justify-center"
                         >
-                          <img
-                            src={photo.dataUrl}
-                            alt={`After Painted Photo ${pIdx + 1}`}
-                            className="max-h-[280px] w-auto max-w-full object-contain mx-auto"
-                          />
-                          <div className="absolute top-2 left-2 bg-emerald-950/80 border border-emerald-400 text-white font-bold text-[10px] px-2 py-0.5 rounded">
+                          <div className="w-full h-[220px] flex items-center justify-center p-1 bg-black">
+                            <img
+                              src={photo.dataUrl}
+                              alt={`After Painted Photo ${pIdx + 1}`}
+                              className="max-h-full max-w-full object-contain mx-auto"
+                            />
+                          </div>
+                          <div className="absolute top-2 left-2 bg-emerald-950/90 border border-emerald-400 text-white font-bold text-[10px] px-2 py-0.5 rounded shadow">
                             Photo #{pIdx + 1}
                           </div>
                           {photo.caption && (
-                            <div className="absolute bottom-0 inset-x-0 bg-black/85 px-2.5 py-1 text-[11px] text-white">
+                            <div className="w-full bg-black/90 px-2.5 py-1 text-[11px] text-white border-t border-slate-800">
                               {photo.caption}
                             </div>
                           )}
@@ -528,43 +620,21 @@ export const ReportPreviewModal: React.FC<ReportPreviewModalProps> = ({
                 </div>
               </div>
 
-              {/* Quality & Cleanliness Verification */}
-              <div className="mt-4 bg-slate-50 border border-slate-200 rounded-xl p-2.5 flex flex-wrap items-center justify-between text-[11px] text-slate-700 gap-1">
-                <span className="font-bold">Quality & Floor Cleanup:</span>
-                <span className="text-emerald-700 font-semibold">
-                  ✓ Mud Sanded Smooth • ✓ Paint Blended • ✓ Floors Vacuumed & Wiped
+              {/* Quality & Cleanliness Verification Bar */}
+              <div className="mt-5 border border-slate-200 rounded-xl p-3 text-xs bg-slate-50 flex flex-wrap justify-between items-center gap-2">
+                <span className="text-slate-700">
+                  Technician: <strong>{profile.workerName}</strong>
                 </span>
-              </div>
-
-              {/* Page Footer */}
-              <div className="flex justify-between items-center text-[10px] text-slate-400 border-t border-slate-200 pt-3 mt-4">
-                <span>FieldLog — Paint & Drywall Unit Tracker • {unit.unitNumber || 'Unit'}</span>
-                <span>Page {pageNum} of {totalPages}</span>
+                <span className="text-emerald-700 font-bold">
+                  ✓ Wall Mudded, Paint Blended & Floors Swept Clean
+                </span>
+                <span className="text-slate-400 text-[10px]">
+                  Page {pageNum} of {totalPages}
+                </span>
               </div>
             </div>
           );
         })}
-
-        {/* Floating Bottom Download Bar on Mobile */}
-        <div className="sticky bottom-4 z-20 flex items-center gap-2">
-          <button
-            onClick={handleDownloadPdf}
-            disabled={isExporting}
-            className="py-3 px-6 bg-emerald-500 hover:bg-emerald-400 text-zinc-950 font-black rounded-2xl text-sm shadow-2xl active:scale-95 transition-all flex items-center gap-2 cursor-pointer disabled:opacity-50"
-          >
-            {isExporting ? (
-              <>
-                <Loader2 className="w-5 h-5 animate-spin" />
-                <span>Generating {totalPages}-Page PDF...</span>
-              </>
-            ) : (
-              <>
-                <Download className="w-5 h-5" />
-                <span>Save / Download PDF ({totalPages} Pages)</span>
-              </>
-            )}
-          </button>
-        </div>
       </div>
     </div>
   );
