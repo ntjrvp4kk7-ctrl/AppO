@@ -268,13 +268,13 @@ export const WeeklyPrintView: React.FC<WeeklyPrintViewProps> = ({
               </p>
             </div>
 
-            {/* Large Side-by-Side Photos */}
-            <div className="grid grid-cols-2 gap-4">
+            {/* Full-width Ungrouped Before & After Sections */}
+            <div className="space-y-4">
               {/* Before */}
               <div className="border border-rose-200 rounded-lg p-3 bg-rose-50/30">
                 <div className="flex items-center justify-between mb-2">
                   <span className="font-black text-rose-700 text-xs tracking-wider uppercase">
-                    [BEFORE · DAMAGE]
+                    [BEFORE · DAMAGE & PREP PHOTOS]
                   </span>
                   <span className="text-[10px] text-rose-600 font-semibold">
                     {beforePhotos.length} photo{beforePhotos.length === 1 ? '' : 's'}
@@ -283,14 +283,17 @@ export const WeeklyPrintView: React.FC<WeeklyPrintViewProps> = ({
 
                 {beforePhotos.length > 0 ? (
                   <div className="photo-grid photos-container">
-                    {beforePhotos.map((photo) => (
-                      <div key={photo.id} className="w-full bg-slate-950 rounded-lg overflow-hidden border border-rose-300 p-1 flex items-center justify-center">
-                        <img src={photo.dataUrl} alt="Before Damage" />
+                    {beforePhotos.map((photo, pIdx) => (
+                      <div key={photo.id} className="w-full bg-slate-950 rounded-lg overflow-hidden border border-rose-300 p-1 flex items-center justify-center relative">
+                        <img src={photo.dataUrl} alt={`Before Damage Photo ${pIdx + 1}`} />
+                        <span className="absolute top-1.5 left-1.5 bg-rose-950 text-white font-bold text-[9px] px-1.5 py-0.5 rounded border border-rose-400">
+                          Photo #{pIdx + 1}
+                        </span>
                       </div>
                     ))}
                   </div>
                 ) : (
-                  <div className="py-20 text-center text-slate-400 italic text-xs">
+                  <div className="py-8 text-center text-slate-400 italic text-xs">
                     [ No before damage photo recorded ]
                   </div>
                 )}
@@ -300,7 +303,7 @@ export const WeeklyPrintView: React.FC<WeeklyPrintViewProps> = ({
               <div className="border border-emerald-200 rounded-lg p-3 bg-emerald-50/30">
                 <div className="flex items-center justify-between mb-2">
                   <span className="font-black text-emerald-700 text-xs tracking-wider uppercase">
-                    [AFTER · PAINTED]
+                    [AFTER · PAINTED & CLEANED PHOTOS]
                   </span>
                   <span className="text-[10px] text-emerald-600 font-semibold">
                     {afterPhotos.length} photo{afterPhotos.length === 1 ? '' : 's'}
@@ -309,14 +312,17 @@ export const WeeklyPrintView: React.FC<WeeklyPrintViewProps> = ({
 
                 {afterPhotos.length > 0 ? (
                   <div className="photo-grid photos-container">
-                    {afterPhotos.map((photo) => (
-                      <div key={photo.id} className="w-full bg-slate-950 rounded-lg overflow-hidden border border-emerald-300 p-1 flex items-center justify-center">
-                        <img src={photo.dataUrl} alt="After Painted" />
+                    {afterPhotos.map((photo, pIdx) => (
+                      <div key={photo.id} className="w-full bg-slate-950 rounded-lg overflow-hidden border border-emerald-300 p-1 flex items-center justify-center relative">
+                        <img src={photo.dataUrl} alt={`After Painted Photo ${pIdx + 1}`} />
+                        <span className="absolute top-1.5 left-1.5 bg-emerald-950 text-white font-bold text-[9px] px-1.5 py-0.5 rounded border border-emerald-400">
+                          Photo #{pIdx + 1}
+                        </span>
                       </div>
                     ))}
                   </div>
                 ) : (
-                  <div className="py-20 text-center text-slate-400 italic text-xs">
+                  <div className="py-8 text-center text-slate-400 italic text-xs">
                     [ No after painted photo recorded ]
                   </div>
                 )}

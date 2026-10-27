@@ -443,13 +443,13 @@ export const ReportPreviewModal: React.FC<ReportPreviewModalProps> = ({
                 </p>
               </div>
 
-              {/* DEDICATED LARGE BEFORE & AFTER PHOTO COLUMNS */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {/* DEDICATED FULL-WIDTH BEFORE & AFTER PHOTO SECTIONS */}
+              <div className="space-y-6">
                 {/* ---------------- [BEFORE · DAMAGE] ---------------- */}
-                <div className="border border-rose-200 rounded-2xl p-3.5 bg-rose-50/40">
-                  <div className="flex justify-between items-center mb-2.5">
+                <div className="border border-rose-200 rounded-2xl p-4 bg-rose-50/40">
+                  <div className="flex justify-between items-center mb-3">
                     <span className="font-black text-rose-700 text-xs tracking-wider uppercase">
-                      [BEFORE · DAMAGE]
+                      [BEFORE · DAMAGE & PREP PHOTOS]
                     </span>
                     <span className="text-[10px] font-bold text-rose-600 bg-rose-100 px-2 py-0.5 rounded">
                       {beforePhotos.length} photo{beforePhotos.length === 1 ? '' : 's'}
@@ -458,16 +458,19 @@ export const ReportPreviewModal: React.FC<ReportPreviewModalProps> = ({
 
                   {beforePhotos.length > 0 ? (
                     <div className="photo-grid photos-container">
-                      {beforePhotos.map((photo) => (
+                      {beforePhotos.map((photo, pIdx) => (
                         <div
                           key={photo.id}
-                          className="w-full min-h-[160px] max-h-[260px] bg-slate-950 rounded-xl overflow-hidden border border-rose-200 shadow-sm relative flex items-center justify-center p-1"
+                          className="w-full min-h-[180px] max-h-[300px] bg-slate-950 rounded-xl overflow-hidden border border-rose-200 shadow-sm relative flex items-center justify-center p-1"
                         >
                           <img
                             src={photo.dataUrl}
-                            alt="Before Damage"
-                            className="max-h-[240px] w-auto max-w-full object-contain mx-auto"
+                            alt={`Before Damage Photo ${pIdx + 1}`}
+                            className="max-h-[280px] w-auto max-w-full object-contain mx-auto"
                           />
+                          <div className="absolute top-2 left-2 bg-rose-950/80 border border-rose-400 text-white font-bold text-[10px] px-2 py-0.5 rounded">
+                            Photo #{pIdx + 1}
+                          </div>
                           {photo.caption && (
                             <div className="absolute bottom-0 inset-x-0 bg-black/85 px-2.5 py-1 text-[11px] text-white">
                               {photo.caption}
@@ -477,17 +480,17 @@ export const ReportPreviewModal: React.FC<ReportPreviewModalProps> = ({
                       ))}
                     </div>
                   ) : (
-                    <div className="py-16 text-center text-slate-400 italic text-xs bg-white/70 rounded-xl border border-dashed border-rose-200">
+                    <div className="py-12 text-center text-slate-400 italic text-xs bg-white/70 rounded-xl border border-dashed border-rose-200">
                       [ No before damage photo recorded ]
                     </div>
                   )}
                 </div>
 
                 {/* ---------------- [AFTER · PAINTED] ---------------- */}
-                <div className="border border-emerald-200 rounded-2xl p-3.5 bg-emerald-50/40">
-                  <div className="flex justify-between items-center mb-2.5">
+                <div className="border border-emerald-200 rounded-2xl p-4 bg-emerald-50/40">
+                  <div className="flex justify-between items-center mb-3">
                     <span className="font-black text-emerald-700 text-xs tracking-wider uppercase">
-                      [AFTER · PAINTED]
+                      [AFTER · PAINTED & CLEANED PHOTOS]
                     </span>
                     <span className="text-[10px] font-bold text-emerald-600 bg-emerald-100 px-2 py-0.5 rounded">
                       {afterPhotos.length} photo{afterPhotos.length === 1 ? '' : 's'}
@@ -496,16 +499,19 @@ export const ReportPreviewModal: React.FC<ReportPreviewModalProps> = ({
 
                   {afterPhotos.length > 0 ? (
                     <div className="photo-grid photos-container">
-                      {afterPhotos.map((photo) => (
+                      {afterPhotos.map((photo, pIdx) => (
                         <div
                           key={photo.id}
-                          className="w-full min-h-[160px] max-h-[260px] bg-slate-950 rounded-xl overflow-hidden border border-emerald-200 shadow-sm relative flex items-center justify-center p-1"
+                          className="w-full min-h-[180px] max-h-[300px] bg-slate-950 rounded-xl overflow-hidden border border-emerald-200 shadow-sm relative flex items-center justify-center p-1"
                         >
                           <img
                             src={photo.dataUrl}
-                            alt="After Painted"
-                            className="max-h-[240px] w-auto max-w-full object-contain mx-auto"
+                            alt={`After Painted Photo ${pIdx + 1}`}
+                            className="max-h-[280px] w-auto max-w-full object-contain mx-auto"
                           />
+                          <div className="absolute top-2 left-2 bg-emerald-950/80 border border-emerald-400 text-white font-bold text-[10px] px-2 py-0.5 rounded">
+                            Photo #{pIdx + 1}
+                          </div>
                           {photo.caption && (
                             <div className="absolute bottom-0 inset-x-0 bg-black/85 px-2.5 py-1 text-[11px] text-white">
                               {photo.caption}
@@ -515,7 +521,7 @@ export const ReportPreviewModal: React.FC<ReportPreviewModalProps> = ({
                       ))}
                     </div>
                   ) : (
-                    <div className="py-16 text-center text-slate-400 italic text-xs bg-white/70 rounded-xl border border-dashed border-emerald-200">
+                    <div className="py-12 text-center text-slate-400 italic text-xs bg-white/70 rounded-xl border border-dashed border-emerald-200">
                       [ No after painted photo recorded ]
                     </div>
                   )}

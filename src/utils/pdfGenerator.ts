@@ -70,42 +70,46 @@ interface UnitWithDate {
   date: string;
   dayName: string;
   unit: UnitWork;
+  unitIdx: number;
 }
 
-interface TaggedPhoto {
+interface UngroupedPhoto {
   photo: UnitPhoto;
   category: 'before' | 'after';
   indexInCategory: number;
   totalInCategory: number;
+  overallIndex: number;
+  totalOverall: number;
 }
 
-type UnitPage =
+type UnitPdfPage =
   | {
-      kind: 'overview';
+      type: 'unit-overview';
       unit: UnitWork;
       date: string;
       dayName: string;
       unitIdx: number;
-      beforePhotos: UnitPhoto[];
-      afterPhotos: UnitPhoto[];
-      hasMorePages: boolean;
+      photos: UngroupedPhoto[];
+      totalUnitPhotos: number;
+      hasContinuation: boolean;
     }
   | {
-      kind: 'photo-grid';
+      type: 'unit-photos-continuation';
       unit: UnitWork;
       date: string;
       dayName: string;
       unitIdx: number;
-      photos: TaggedPhoto[];
-      gridPageNum: number;
-      totalGridPages: number;
+      photos: UngroupedPhoto[];
+      totalUnitPhotos: number;
+      continuationPageNum: number;
+      totalContinuationPages: number;
     };
 
 /**
  * Generates the official multi-page PDF report:
- * - PAGE 1: 1 page dedicated to the hours worked, clock in/out, lunch, and signatures
- * - PAGE 2+: Dedicated pages per unit day displaying ALL uploaded before and after photos
- *   in a clean structured grid layout without stretching or any '+N more photos' buttons.
+ * - PAGE 1: 1 dedicated page for the hours worked, clock in/out, lunch, and signatures
+ * - PAGE 2+: Dedicated unit pages displaying ALL uploaded photos sequentially
+ *   without grouping them into cramped 4-image blocks or omitting any pictures.
  */
 export async function generateWeeklyReportPdf(options: PdfExportOptions): Promise<jsPDF> {
   const { dates, logs, profile, supervisorSignature } = options;
@@ -145,79 +149,90 @@ export async function generateWeeklyReportPdf(options: PdfExportOptions): Promis
         });
 
         log.units.forEach((u) => {
-          unitList.push({ date: dateStr, dayName, unit: u });
+          unitList.push({
+            date: dateStr,
+            dayName,
+            unit: u,
+            unitIdx: unitList.length,
+          });
         });
       }
     }
   });
 
-  // Build complete list of unit pages ensuring ALL photos are rendered without omission
-  const unitPages: UnitPage[] = [];
+  // Build complete list of pages ensuring NO photos are grouped into 4-packs
+  // and EVERY SINGLE PHOTO is displayed in full sequence
+  const unitPdfPages: UnitPdfPage[] = [];
 
-  unitList.forEach((item, unitIdx) => {
-    const { date, dayName, unit } = item;
-    const allBefore = (unit.photos || []).filter((p) => p.type === 'before');
-    const allAfter = (unit.photos || []).filter((p) => p.type === 'after');
+  unitList.forEach((item) => {
+    const { date, dayName, unit, unitIdx } = item;
+    const beforeList = (unit.photos || []).filter((p) => p.type === 'before');
+    const afterList = (unit.photos || []).filter((p) => p.type === 'after');
 
-    // Page 1 of this unit shows overview + first 2 before & after photos
-    const firstBefore = allBefore.slice(0, 2);
-    const firstAfter = allAfter.slice(0, 2);
+    const allUnitPhotos: UngroupedPhoto[] = [];
 
-    const remainingPhotos: TaggedPhoto[] = [];
-
-    allBefore.slice(2).forEach((p, idx) => {
-      remainingPhotos.push({
+    beforeList.forEach((p, idx) => {
+      allUnitPhotos.push({
         photo: p,
         category: 'before',
-        indexInCategory: idx + 3,
-        totalInCategory: allBefore.length,
+        indexInCategory: idx + 1,
+        totalInCategory: beforeList.length,
+        overallIndex: allUnitPhotos.length + 1,
+        totalOverall: beforeList.length + afterList.length,
       });
     });
 
-    allAfter.slice(2).forEach((p, idx) => {
-      remainingPhotos.push({
+    afterList.forEach((p, idx) => {
+      allUnitPhotos.push({
         photo: p,
         category: 'after',
-        indexInCategory: idx + 3,
-        totalInCategory: allAfter.length,
+        indexInCategory: idx + 1,
+        totalInCategory: afterList.length,
+        overallIndex: allUnitPhotos.length + 1,
+        totalOverall: beforeList.length + afterList.length,
       });
     });
 
-    const hasMorePages = remainingPhotos.length > 0;
+    const totalUnitPhotos = allUnitPhotos.length;
+    // Page 1 of the unit displays unit overview + first 2 photos
+    const firstTwo = allUnitPhotos.slice(0, 2);
+    const remaining = allUnitPhotos.slice(2);
+    const hasContinuation = remaining.length > 0;
 
-    unitPages.push({
-      kind: 'overview',
+    unitPdfPages.push({
+      type: 'unit-overview',
       unit,
       date,
       dayName,
       unitIdx,
-      beforePhotos: firstBefore,
-      afterPhotos: firstAfter,
-      hasMorePages,
+      photos: firstTwo,
+      totalUnitPhotos,
+      hasContinuation,
     });
 
-    // Chunk remaining photos into structured grid pages (up to 4 large photos per grid page)
-    if (hasMorePages) {
-      const chunkSize = 4;
-      const totalGridPages = Math.ceil(remainingPhotos.length / chunkSize);
-      for (let g = 0; g < totalGridPages; g++) {
-        const chunk = remainingPhotos.slice(g * chunkSize, (g + 1) * chunkSize);
-        unitPages.push({
-          kind: 'photo-grid',
+    // Each continuation page displays up to 2 large ungrouped photos
+    if (hasContinuation) {
+      const chunkSize = 2;
+      const totalContinuationPages = Math.ceil(remaining.length / chunkSize);
+      for (let c = 0; c < totalContinuationPages; c++) {
+        const chunk = remaining.slice(c * chunkSize, (c + 1) * chunkSize);
+        unitPdfPages.push({
+          type: 'unit-photos-continuation',
           unit,
           date,
           dayName,
           unitIdx,
           photos: chunk,
-          gridPageNum: g + 1,
-          totalGridPages,
+          totalUnitPhotos,
+          continuationPageNum: c + 1,
+          totalContinuationPages,
         });
       }
     }
   });
 
-  // Calculate total pages: Page 1 for hours + unit pages
-  const totalPages = unitPages.length > 0 ? 1 + unitPages.length : 2;
+  // Calculate total pages: Page 1 for hours + all unit pages
+  const totalPages = unitPdfPages.length > 0 ? 1 + unitPdfPages.length : 2;
 
   // Pre-convert and cache all photos with natural aspect ratios
   const preparedPhotos = new Map<string, ProcessedPhoto | null>();
@@ -303,7 +318,7 @@ export async function generateWeeklyReportPdf(options: PdfExportOptions): Promis
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(7);
   doc.setTextColor(100, 116, 139);
-  doc.text(`(${unitPages.length} unit pages attached)`, rightBoxX + 6, 44);
+  doc.text(`(${unitPdfPages.length} unit pages attached)`, rightBoxX + 6, 44);
 
   // Section 1: Timesheet Table
   let currentY = 54;
@@ -558,9 +573,9 @@ export async function generateWeeklyReportPdf(options: PdfExportOptions): Promis
   doc.text(`Page 1 of ${totalPages}`, marginX + contentWidth, pageHeight - 8, { align: 'right' });
 
   // =========================================================================
-  // PAGE 2+: DEDICATED FULL PAGES PER UNIT DAY (ALL PHOTOS IN STRUCTURED GRID)
+  // PAGE 2+: DEDICATED UNIT PAGES (ALL PHOTOS DISPLAYED UNGROUPED & FULL SIZE)
   // =========================================================================
-  if (unitPages.length === 0) {
+  if (unitPdfPages.length === 0) {
     // If no units recorded, provide clean explanation page
     doc.addPage();
     doc.setFillColor(16, 185, 129);
@@ -585,14 +600,12 @@ export async function generateWeeklyReportPdf(options: PdfExportOptions): Promis
     doc.text(`Page 2 of 2`, marginX + contentWidth, pageHeight - 8, { align: 'right' });
   } else {
     // Render each unit page
-    unitPages.forEach((uPage, pageIdx) => {
+    unitPdfPages.forEach((uPage, pageIdx) => {
       const pageNum = 2 + pageIdx;
       doc.addPage();
 
-      if (uPage.kind === 'overview') {
-        const { unit, date, dayName, beforePhotos, afterPhotos, hasMorePages } = uPage;
-        const allBeforeCount = (unit.photos || []).filter((p) => p.type === 'before').length;
-        const allAfterCount = (unit.photos || []).filter((p) => p.type === 'after').length;
+      if (uPage.type === 'unit-overview') {
+        const { unit, date, dayName, photos, totalUnitPhotos, hasContinuation } = uPage;
 
         // Top Header Ribbon
         doc.setFillColor(244, 63, 94); // rose-500
@@ -601,17 +614,17 @@ export async function generateWeeklyReportPdf(options: PdfExportOptions): Promis
         // Header Page Pill Tag
         doc.setFillColor(255, 241, 242); // rose-50
         doc.setDrawColor(254, 205, 211); // rose-200
-        const pillW = hasMorePages ? 88 : 74;
+        const pillW = hasContinuation ? 86 : 74;
         doc.roundedRect(marginX, 18, pillW, 6, 1.5, 1.5, 'FD');
         doc.setFont('helvetica', 'bold');
         doc.setFontSize(7.5);
         doc.setTextColor(225, 29, 72); // rose-600
-        const pillText = hasMorePages
-          ? `PAGE ${pageNum} OF ${totalPages} · UNIT WORK & SCOPE OVERVIEW`
+        const pillText = hasContinuation
+          ? `PAGE ${pageNum} OF ${totalPages} · ${unit.unitNumber || 'UNIT'} OVERVIEW & PHOTOS`
           : `PAGE ${pageNum} OF ${totalPages} · UNIT WORK & PHOTO PROOF`;
         doc.text(pillText, marginX + 3, 22.2);
 
-        // Date and Technician Info on Top Right (Separated lines, NO collision)
+        // Date and Technician Info on Top Right (Separated lines, ZERO collision)
         doc.setFont('helvetica', 'bold');
         doc.setFontSize(9);
         doc.setTextColor(71, 85, 105);
@@ -633,7 +646,7 @@ export async function generateWeeklyReportPdf(options: PdfExportOptions): Promis
         doc.setTextColor(15, 23, 42); // slate-900
         doc.text(unit.unitNumber || `Unit #${uPage.unitIdx + 1}`, marginX, 35);
 
-        // Paint and Status Badges
+        // Paint and Status Badges (Cleanly placed, no text collision)
         let badgeX = marginX;
         if (unit.paintColor) {
           doc.setFillColor(241, 245, 249);
@@ -655,22 +668,20 @@ export async function generateWeeklyReportPdf(options: PdfExportOptions): Promis
         doc.text('✓ Finished, Painted & Cleaned', badgeX + 3, 43.5);
 
         // Divider line
-        let unitY = 48;
         doc.setDrawColor(15, 23, 42);
         doc.setLineWidth(0.6);
-        doc.line(marginX, unitY, marginX + contentWidth, unitY);
+        doc.line(marginX, 48, marginX + contentWidth, 48);
 
         // Work & Damage Description Box
-        unitY += 5;
         const notesBoxH = 15;
         doc.setFillColor(248, 250, 252);
         doc.setDrawColor(226, 232, 240);
-        doc.roundedRect(marginX, unitY, contentWidth, notesBoxH, 2, 2, 'FD');
+        doc.roundedRect(marginX, 52, contentWidth, notesBoxH, 2, 2, 'FD');
 
         doc.setFont('helvetica', 'bold');
         doc.setFontSize(7.5);
         doc.setTextColor(71, 85, 105);
-        doc.text('SCOPE & REPAIRS COMPLETED:', marginX + 4, unitY + 4.8);
+        doc.text('SCOPE & REPAIRS COMPLETED:', marginX + 4, 56.5);
 
         doc.setFont('helvetica', 'normal');
         doc.setFontSize(8.5);
@@ -680,108 +691,73 @@ export async function generateWeeklyReportPdf(options: PdfExportOptions): Promis
             ? unit.notes
             : 'Found small holes/drywall damage, patched with mud, sanded smooth, rolled paint, cleaned floors.';
         const splitNotes = doc.splitTextToSize(notesText, contentWidth - 8);
-        doc.text(splitNotes[0] || '', marginX + 4, unitY + 10.5);
+        doc.text(splitNotes[0] || '', marginX + 4, 62);
         if (splitNotes[1]) {
-          doc.text(splitNotes[1], marginX + 4, unitY + 14);
+          doc.text(splitNotes[1], marginX + 4, 65.5);
         }
 
-        // =========================================================================
-        // SIDE-BY-SIDE COLUMNS: [BEFORE · DAMAGE] & [AFTER · PAINTED]
-        // =========================================================================
-        unitY += notesBoxH + 5;
-
-        const colGap = 7;
-        const colWidth = (contentWidth - colGap) / 2; // ~90.4 mm
-        const photoBoxH = 155; // Generous height to make pictures large and clear
-
-        // ---------------- LEFT COLUMN: [BEFORE · DAMAGE] ----------------
-        const beforeX = marginX;
-
-        doc.setFillColor(254, 242, 242); // rose-50
-        doc.setDrawColor(254, 205, 211); // rose-200
-        doc.roundedRect(beforeX, unitY, colWidth, 7, 1.5, 1.5, 'FD');
-
-        doc.setFont('helvetica', 'bold');
-        doc.setFontSize(8.5);
-        doc.setTextColor(190, 18, 60); // rose-700
-        doc.text('[BEFORE · DAMAGE]', beforeX + 4, unitY + 5);
-
-        doc.setFont('helvetica', 'normal');
-        doc.setFontSize(7);
-        doc.setTextColor(190, 18, 60);
-        const beforeLabel =
-          allBeforeCount > 2
-            ? `Showing 1–${beforePhotos.length} of ${allBeforeCount} photos`
-            : `${beforePhotos.length} photo${beforePhotos.length === 1 ? '' : 's'}`;
-        doc.text(beforeLabel, beforeX + colWidth - 4, unitY + 5, { align: 'right' });
-
-        const beforeContentY = unitY + 9;
-        const beforePhotoH = photoBoxH - 12;
-
-        renderPhotoStack(
-          doc,
-          beforePhotos,
-          preparedPhotos,
-          beforeX,
-          beforeContentY,
-          colWidth,
-          beforePhotoH,
-          '[ No before damage photo recorded ]'
-        );
-
-        // ---------------- RIGHT COLUMN: [AFTER · PAINTED] ----------------
-        const afterX = marginX + colWidth + colGap;
-
-        doc.setFillColor(240, 253, 244); // emerald-50
-        doc.setDrawColor(187, 247, 208); // emerald-200
-        doc.roundedRect(afterX, unitY, colWidth, 7, 1.5, 1.5, 'FD');
-
-        doc.setFont('helvetica', 'bold');
-        doc.setFontSize(8.5);
-        doc.setTextColor(21, 128, 61); // emerald-700
-        doc.text('[AFTER · PAINTED]', afterX + 4, unitY + 5);
-
-        doc.setFont('helvetica', 'normal');
-        doc.setFontSize(7);
-        doc.setTextColor(21, 128, 61);
-        const afterLabel =
-          allAfterCount > 2
-            ? `Showing 1–${afterPhotos.length} of ${allAfterCount} photos`
-            : `${afterPhotos.length} photo${afterPhotos.length === 1 ? '' : 's'}`;
-        doc.text(afterLabel, afterX + colWidth - 4, unitY + 5, { align: 'right' });
-
-        const afterContentY = unitY + 9;
-        const afterPhotoH = photoBoxH - 12;
-
-        renderPhotoStack(
-          doc,
-          afterPhotos,
-          preparedPhotos,
-          afterX,
-          afterContentY,
-          colWidth,
-          afterPhotoH,
-          '[ No after painted photo recorded ]'
-        );
-
-        // Bottom Quality & Cleanliness Verification Bar
-        const verifyY = unitY + photoBoxH + 3;
+        // Quality & Cleanliness Verification Bar
         doc.setFillColor(248, 250, 252);
         doc.setDrawColor(226, 232, 240);
-        doc.roundedRect(marginX, verifyY, contentWidth, 9, 1.5, 1.5, 'FD');
+        doc.roundedRect(marginX, 70, contentWidth, 8, 1.5, 1.5, 'FD');
 
         doc.setFont('helvetica', 'bold');
         doc.setFontSize(7.5);
         doc.setTextColor(15, 23, 42);
-        doc.text('QUALITY & CLEANUP CHECK:', marginX + 4, verifyY + 5.8);
+        doc.text('QUALITY & CLEANUP:', marginX + 4, 75.5);
 
         doc.setFont('helvetica', 'normal');
         doc.setFontSize(7.5);
         doc.setTextColor(5, 150, 105);
-        const extraNote = hasMorePages
-          ? `✓ Wall Patched • ✓ Paint Rolled • ✓ Floors Cleaned  (See Next Page for All ${unit.photos.length} Photos)`
-          : `✓ Wall Patched  •  ✓ Paint Blended & Rolled  •  ✓ Floors Cleaned & Vacuumped`;
-        doc.text(extraNote, marginX + 48, verifyY + 5.8);
+        const qualityNote = hasContinuation
+          ? `✓ Wall Patched • ✓ Paint Rolled • ✓ Floors Cleaned (${totalUnitPhotos} Total Photos Uploaded — See Next Page for All)`
+          : `✓ Wall Patched  •  ✓ Paint Blended & Rolled  •  ✓ Floors Cleaned & Vacuumped (${totalUnitPhotos} Photos)`;
+        doc.text(qualityNote, marginX + 44, 75.5);
+
+        // =========================================================================
+        // UNGROUPED FULL-WIDTH PHOTOS ON PAGE 1
+        // =========================================================================
+        const photoStartY = 81;
+        const availH = pageHeight - photoStartY - 14; // ~184 mm
+
+        if (photos.length === 0) {
+          doc.setFillColor(250, 250, 252);
+          doc.setDrawColor(226, 232, 240);
+          doc.roundedRect(marginX, photoStartY, contentWidth, 54, 2, 2, 'FD');
+          doc.setFont('helvetica', 'italic');
+          doc.setFontSize(8.5);
+          doc.setTextColor(148, 163, 184);
+          doc.text('[ No before/after photos recorded for this unit ]', marginX + contentWidth / 2, photoStartY + 27, {
+            align: 'center',
+          });
+        } else if (photos.length === 1) {
+          // Exactly 1 huge unstretched photo
+          drawSingleUngroupedPhoto(
+            doc,
+            photos[0],
+            preparedPhotos,
+            marginX,
+            photoStartY,
+            contentWidth,
+            availH
+          );
+        } else {
+          // Up to 2 full-width ungrouped photos stacked vertically
+          const gap = 6;
+          const slotH = (availH - gap) / 2; // ~89 mm each
+          photos.forEach((item, idx) => {
+            const slotY = photoStartY + idx * (slotH + gap);
+            drawSingleUngroupedPhoto(
+              doc,
+              item,
+              preparedPhotos,
+              marginX,
+              slotY,
+              contentWidth,
+              slotH
+            );
+          });
+        }
 
         // Page Footer
         doc.setFont('helvetica', 'normal');
@@ -795,11 +771,11 @@ export async function generateWeeklyReportPdf(options: PdfExportOptions): Promis
         doc.text(`Page ${pageNum} of ${totalPages}`, marginX + contentWidth, pageHeight - 8, {
           align: 'right',
         });
-      } else if (uPage.kind === 'photo-grid') {
+      } else if (uPage.type === 'unit-photos-continuation') {
         // =========================================================================
-        // DEDICATED STRUCTURED PHOTO GRID PAGE (UP TO 4 LARGE UNSTRETCHED PHOTOS)
+        // CONTINUATION PAGES: LARGE UNGROUPED PHOTOS (UP TO 2 PER PAGE)
         // =========================================================================
-        const { unit, date, dayName, photos, gridPageNum, totalGridPages } = uPage;
+        const { unit, date, dayName, photos, totalUnitPhotos, continuationPageNum, totalContinuationPages } = uPage;
 
         // Top Header Ribbon
         doc.setFillColor(244, 63, 94); // rose-500
@@ -808,12 +784,12 @@ export async function generateWeeklyReportPdf(options: PdfExportOptions): Promis
         // Header Page Pill Tag
         doc.setFillColor(255, 241, 242);
         doc.setDrawColor(254, 205, 211);
-        doc.roundedRect(marginX, 18, 98, 6, 1.5, 1.5, 'FD');
+        doc.roundedRect(marginX, 18, 92, 6, 1.5, 1.5, 'FD');
         doc.setFont('helvetica', 'bold');
         doc.setFontSize(7.5);
         doc.setTextColor(225, 29, 72);
         doc.text(
-          `PAGE ${pageNum} OF ${totalPages} · ${unit.unitNumber || 'UNIT'} (PHOTO PROOFS PART ${gridPageNum}/${totalGridPages})`,
+          `PAGE ${pageNum} OF ${totalPages} · ${unit.unitNumber || 'UNIT'} (PHOTOS PART ${continuationPageNum}/${totalContinuationPages})`,
           marginX + 3,
           22.2
         );
@@ -838,46 +814,49 @@ export async function generateWeeklyReportPdf(options: PdfExportOptions): Promis
         doc.setFont('helvetica', 'bold');
         doc.setFontSize(18);
         doc.setTextColor(15, 23, 42);
-        doc.text(`${unit.unitNumber || 'Unit'} — Complete Photo Proofs`, marginX, 35);
-
-        doc.setFont('helvetica', 'normal');
-        doc.setFontSize(8.5);
-        doc.setTextColor(100, 116, 139);
+        const photoStart = photos[0]?.overallIndex || 1;
+        const photoEnd = photos[photos.length - 1]?.overallIndex || totalUnitPhotos;
         doc.text(
-          `All repair & painting photos displayed in structured high-resolution grid (Part ${gridPageNum} of ${totalGridPages})`,
+          `${unit.unitNumber || 'Unit'} — Complete Photo Proofs (Photos ${photoStart}–${photoEnd} of ${totalUnitPhotos})`,
           marginX,
-          40
+          35
         );
 
-        // Divider
+        // Divider line
         doc.setDrawColor(15, 23, 42);
         doc.setLineWidth(0.6);
-        doc.line(marginX, 43, marginX + contentWidth, 43);
+        doc.line(marginX, 38, marginX + contentWidth, 38);
 
-        // Render 2x2 Grid of Photos
-        const gridStartY = 48;
-        const gridGapX = 7;
-        const gridGapY = 6;
-        const colW = (contentWidth - gridGapX) / 2; // ~90.4 mm
-        const gridAvailH = pageHeight - gridStartY - 16; // ~215 mm
-        const cellH = (gridAvailH - gridGapY) / 2; // ~104.5 mm per cell
+        // Render up to 2 large ungrouped photos
+        const photoStartY = 42;
+        const availH = pageHeight - photoStartY - 14; // ~223 mm
 
-        photos.forEach((item, cellIdx) => {
-          const col = cellIdx % 2;
-          const row = Math.floor(cellIdx / 2);
-          const cellX = marginX + col * (colW + gridGapX);
-          const cellY = gridStartY + row * (cellH + gridGapY);
-
-          renderSinglePhotoCard(
+        if (photos.length === 1) {
+          drawSingleUngroupedPhoto(
             doc,
-            item,
+            photos[0],
             preparedPhotos,
-            cellX,
-            cellY,
-            colW,
-            cellH
+            marginX,
+            photoStartY,
+            contentWidth,
+            Math.min(190, availH)
           );
-        });
+        } else {
+          const gap = 8;
+          const slotH = (availH - gap) / 2; // ~107 mm per photo
+          photos.forEach((item, idx) => {
+            const slotY = photoStartY + idx * (slotH + gap);
+            drawSingleUngroupedPhoto(
+              doc,
+              item,
+              preparedPhotos,
+              marginX,
+              slotY,
+              contentWidth,
+              slotH
+            );
+          });
+        }
 
         // Page Footer
         doc.setFont('helvetica', 'normal');
@@ -899,48 +878,13 @@ export async function generateWeeklyReportPdf(options: PdfExportOptions): Promis
 }
 
 /**
- * Renders up to 2 stacked photos in a column (for Overview page).
- * Photos preserve natural aspect ratio, centered, unstretched.
+ * Renders a single ungrouped photo card spanning full width.
+ * Features a category banner on top, centered unstretched image, and caption overlay.
+ * NEVER CLUSTERS OR GROUPS PHOTOS INTO CRAMPED 4-PACKS.
  */
-function renderPhotoStack(
+function drawSingleUngroupedPhoto(
   doc: jsPDF,
-  photos: UnitPhoto[],
-  cachedPhotos: Map<string, ProcessedPhoto | null>,
-  x: number,
-  y: number,
-  w: number,
-  h: number,
-  emptyText: string
-) {
-  if (photos.length === 0) {
-    doc.setFillColor(250, 250, 252);
-    doc.setDrawColor(226, 232, 240);
-    doc.roundedRect(x, y, w, h, 2, 2, 'FD');
-
-    doc.setFont('helvetica', 'italic');
-    doc.setFontSize(8);
-    doc.setTextColor(148, 163, 184);
-    doc.text(emptyText, x + w / 2, y + h / 2, { align: 'center' });
-    return;
-  }
-
-  const count = photos.length;
-  const gap = 3.5;
-  const slotH = (h - (count - 1) * gap) / count;
-
-  photos.forEach((photo, idx) => {
-    const slotY = y + idx * (slotH + gap);
-    drawFittedPhotoBox(doc, photo, cachedPhotos, x, slotY, w, slotH);
-  });
-}
-
-/**
- * Renders a single photo card inside a structured grid cell.
- * Features a distinct category banner header and unstretched photographic display.
- */
-function renderSinglePhotoCard(
-  doc: jsPDF,
-  item: TaggedPhoto,
+  item: UngroupedPhoto,
   cachedPhotos: Map<string, ProcessedPhoto | null>,
   x: number,
   y: number,
@@ -950,7 +894,7 @@ function renderSinglePhotoCard(
   const isBefore = item.category === 'before';
   const tagH = 6.5;
 
-  // Header Banner Tag
+  // Individual Top Category Banner
   if (isBefore) {
     doc.setFillColor(254, 242, 242); // rose-50
     doc.setDrawColor(254, 205, 211); // rose-200
@@ -963,49 +907,42 @@ function renderSinglePhotoCard(
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(8);
   if (isBefore) {
-    doc.setTextColor(190, 18, 60);
-    doc.text(`[BEFORE · DAMAGE] Photo #${item.indexInCategory} of ${item.totalInCategory}`, x + 3.5, y + 4.7);
+    doc.setTextColor(190, 18, 60); // rose-700
+    doc.text(
+      `[BEFORE · DAMAGE]  Photo #${item.indexInCategory} of ${item.totalInCategory}  (Damage & Prep)`,
+      x + 3.5,
+      y + 4.7
+    );
   } else {
-    doc.setTextColor(21, 128, 61);
-    doc.text(`[AFTER · PAINTED] Photo #${item.indexInCategory} of ${item.totalInCategory}`, x + 3.5, y + 4.7);
+    doc.setTextColor(21, 128, 61); // emerald-700
+    doc.text(
+      `[AFTER · PAINTED]  Photo #${item.indexInCategory} of ${item.totalInCategory}  (Painted & Floors Cleaned)`,
+      x + 3.5,
+      y + 4.7
+    );
   }
 
-  // Photo Display Box below header banner
+  // Photo Frame Box directly underneath the banner
   const photoY = y + tagH + 1.5;
   const photoH = h - tagH - 1.5;
-  drawFittedPhotoBox(doc, item.photo, cachedPhotos, x, photoY, w, photoH);
-}
 
-/**
- * Draws a single photo inside bounding box (x, y, w, h).
- * PRESERVES EXACT NATURAL ASPECT RATIO — NEVER STRETCHES.
- */
-function drawFittedPhotoBox(
-  doc: jsPDF,
-  photo: UnitPhoto,
-  cachedPhotos: Map<string, ProcessedPhoto | null>,
-  x: number,
-  y: number,
-  w: number,
-  h: number
-) {
-  // Outer frame & dark matte backing
+  // Outer dark matte backing
   doc.setFillColor(15, 23, 42); // slate-900 backing
   doc.setDrawColor(203, 213, 225);
   doc.setLineWidth(0.3);
-  doc.roundedRect(x, y, w, h, 1.5, 1.5, 'FD');
+  doc.roundedRect(x, photoY, w, photoH, 1.5, 1.5, 'FD');
 
-  const cached = cachedPhotos.get(photo.id);
+  const cached = cachedPhotos.get(item.photo.id);
 
   if (cached && cached.dataUrl) {
     try {
       const imgW = cached.width || 800;
       const imgH = cached.height || 600;
       const imgRatio = imgW / imgH;
-      const boxRatio = w / h;
+      const boxRatio = w / photoH;
 
       let drawW = w;
-      let drawH = h;
+      let drawH = photoH;
 
       if (imgRatio > boxRatio) {
         // Photo is proportionally wider than box: constrain to width, scale height
@@ -1013,38 +950,38 @@ function drawFittedPhotoBox(
         drawH = w / imgRatio;
       } else {
         // Photo is proportionally taller than box: constrain to height, scale width
-        drawH = h;
-        drawW = h * imgRatio;
+        drawH = photoH;
+        drawW = photoH * imgRatio;
       }
 
-      // Center inside bounding box
+      // Center inside bounding box (PRESERVES EXACT NATURAL ASPECT RATIO)
       const drawX = x + (w - drawW) / 2;
-      const drawY = y + (h - drawH) / 2;
+      const drawY = photoY + (photoH - drawH) / 2;
 
-      // Draw JPEG image without any stretching
+      // Draw image without ANY stretching
       doc.addImage(cached.dataUrl, 'JPEG', drawX, drawY, drawW, drawH, undefined, 'FAST');
 
-      // Outline border
+      // Outline border around slot
       doc.setDrawColor(203, 213, 225);
       doc.setLineWidth(0.3);
-      doc.roundedRect(x, y, w, h, 1.5, 1.5, 'S');
+      doc.roundedRect(x, photoY, w, photoH, 1.5, 1.5, 'S');
 
       // Caption overlay if provided
-      if (photo.caption && photo.caption.trim()) {
-        const capH = Math.min(6.5, h * 0.18);
+      if (item.photo.caption && item.photo.caption.trim()) {
+        const capH = Math.min(6.5, photoH * 0.16);
         doc.setFillColor(15, 23, 42);
-        doc.rect(x, y + h - capH, w, capH, 'F');
+        doc.rect(x, photoY + photoH - capH, w, capH, 'F');
         doc.setFont('helvetica', 'normal');
         doc.setFontSize(6.5);
         doc.setTextColor(255, 255, 255);
-        doc.text(photo.caption, x + 2.5, y + h - 1.8);
+        doc.text(item.photo.caption, x + 2.5, photoY + photoH - 1.8);
       }
     } catch (err) {
       console.warn('Error adding image to PDF:', err);
-      renderErrorBox(doc, x, y, w, h, 'Image could not be rendered');
+      renderErrorBox(doc, x, photoY, w, photoH, 'Image could not be rendered');
     }
   } else {
-    renderErrorBox(doc, x, y, w, h, 'Image loading failed');
+    renderErrorBox(doc, x, photoY, w, photoH, 'Image loading failed');
   }
 }
 

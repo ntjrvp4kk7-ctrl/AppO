@@ -1,5 +1,5 @@
 import React, { useRef } from 'react';
-import { Camera, Trash2, CheckCircle2, Circle, Image as ImageIcon } from 'lucide-react';
+import { Camera, Trash2, Check, Paintbrush, FileText } from 'lucide-react';
 import { UnitWork, UnitPhoto } from '../types/worklog';
 import { compressImage } from '../utils/photoUtils';
 
@@ -49,7 +49,7 @@ export const UnitWorkCard: React.FC<UnitWorkCardProps> = ({
   const afterPhotos = unit.photos.filter((p) => p.type === 'after');
 
   return (
-    <div className="bg-zinc-900/90 border border-zinc-800/80 rounded-2xl p-4 shadow-sm space-y-3.5 hover:border-zinc-700/80 transition-colors">
+    <div className="bg-[#1c1c1e] rounded-[18px] border border-[#2c2c2e]/70 p-4 shadow-sm space-y-3.5 transition-all">
       {/* Hidden file inputs for instant mobile camera snap */}
       <input
         type="file"
@@ -68,72 +68,74 @@ export const UnitWorkCard: React.FC<UnitWorkCardProps> = ({
         className="hidden"
       />
 
-      {/* Unit Header */}
-      <div className="flex items-start justify-between gap-2">
-        <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-2">
-          <div>
-            <label className="block text-[10px] font-bold text-zinc-500 uppercase tracking-wider mb-1">
-              Unit / Apt #
-            </label>
+      {/* iOS Card Header: Unit Number & Paint Color with Delete Action */}
+      <div className="flex items-start justify-between gap-3 pb-1 border-b border-[#38383a]/40">
+        <div className="flex-1 space-y-2">
+          {/* Unit Name Input (Styled like iOS Large Cell Title) */}
+          <div className="flex items-center gap-2">
+            <span className="text-[12px] font-semibold uppercase tracking-wider text-[#0a84ff]">
+              Unit
+            </span>
             <input
               type="text"
-              placeholder="e.g. Unit 304, Apt 12B"
+              placeholder="e.g. 1324, Apt 4B"
               value={unit.unitNumber}
               onChange={(e) => onUpdateUnit({ ...unit, unitNumber: e.target.value })}
-              className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-1.5 text-sm font-bold text-white placeholder-zinc-600 focus:outline-none focus:border-emerald-500"
+              className="w-full bg-transparent text-[18px] font-bold text-white placeholder-[#636366] focus:outline-none"
             />
           </div>
 
-          <div>
-            <label className="block text-[10px] font-bold text-zinc-500 uppercase tracking-wider mb-1">
-              Paint Color
-            </label>
+          {/* Paint Color Input */}
+          <div className="flex items-center gap-2 bg-[#2c2c2e] px-3 py-1.5 rounded-[10px] border border-[#3a3a3c]/60">
+            <Paintbrush className="w-3.5 h-3.5 text-[#8e8e93] shrink-0" />
             <input
               type="text"
-              placeholder="e.g. Agreeable Gray, Swiss Coffee"
+              placeholder="Paint color: e.g. Agreeable Gray, Semi-Gloss"
               value={unit.paintColor || ''}
               onChange={(e) => onUpdateUnit({ ...unit, paintColor: e.target.value })}
-              className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-1.5 text-xs text-zinc-200 placeholder-zinc-600 focus:outline-none focus:border-emerald-500"
+              className="w-full bg-transparent text-[13px] text-white placeholder-[#8e8e93] focus:outline-none"
             />
           </div>
         </div>
 
+        {/* Delete Unit Action (iOS Red Circle Icon) */}
         <button
           type="button"
           onClick={() => {
-            if (confirm(`Delete ${unit.unitNumber || 'this unit'}?`)) {
+            if (confirm(`Remove ${unit.unitNumber || 'this unit'}?`)) {
               onDeleteUnit(unit.id);
             }
           }}
-          className="p-1.5 text-zinc-500 hover:text-rose-400 hover:bg-zinc-800 rounded-lg transition-colors mt-5"
+          className="w-8 h-8 rounded-full bg-[#2c2c2e] text-[#ff453a] hover:bg-[#3a3a3c] active:opacity-60 transition-all flex items-center justify-center shrink-0 mt-0.5 cursor-pointer"
           title="Delete unit"
         >
           <Trash2 className="w-4 h-4" />
         </button>
       </div>
 
-      {/* Quick notes */}
-      <div>
+      {/* Scope / Damage Notes Field */}
+      <div className="flex items-center gap-2 bg-[#2c2c2e] px-3 py-2 rounded-[10px] border border-[#3a3a3c]/60">
+        <FileText className="w-3.5 h-3.5 text-[#8e8e93] shrink-0" />
         <input
           type="text"
-          placeholder="Notes: e.g. Patched 2 door holes, rolled wall, floors cleaned"
+          placeholder="Repairs: e.g. Patched door holes, rolled wall, cleaned floor"
           value={unit.notes || ''}
           onChange={(e) => onUpdateUnit({ ...unit, notes: e.target.value })}
-          className="w-full bg-zinc-950/60 border border-zinc-800/80 rounded-xl px-3 py-1.5 text-xs text-zinc-300 placeholder-zinc-600 focus:outline-none focus:border-emerald-500"
+          className="w-full bg-transparent text-[13px] text-white placeholder-[#8e8e93] focus:outline-none"
         />
       </div>
 
-      {/* Before & After Photo Proof Columns */}
-      <div className="grid grid-cols-2 gap-2.5 pt-1">
+      {/* Before & After Photo Sections (Apple Photos Style) */}
+      <div className="grid grid-cols-2 gap-2.5 pt-0.5">
         {/* BEFORE COLUMN */}
-        <div className="bg-zinc-950/80 border border-zinc-800/80 rounded-xl p-2.5 flex flex-col justify-between min-h-[140px]">
+        <div className="bg-[#2c2c2e]/60 border border-[#3a3a3c]/60 rounded-[14px] p-2.5 flex flex-col justify-between min-h-[140px]">
           <div>
             <div className="flex items-center justify-between mb-2">
-              <span className="text-[11px] font-bold text-rose-400 uppercase tracking-wide">
-                Before / Damage
+              <span className="text-[11px] font-bold uppercase tracking-wider text-[#ff453a]">
+                [Before Damage]
               </span>
-              <span className="text-[10px] text-zinc-500 font-mono-numbers">
-                {beforePhotos.length} pic{beforePhotos.length === 1 ? '' : 's'}
+              <span className="text-[10px] font-semibold text-[#8e8e93] font-mono-numbers">
+                {beforePhotos.length}
               </span>
             </div>
 
@@ -143,7 +145,7 @@ export const UnitWorkCard: React.FC<UnitWorkCardProps> = ({
                   <div
                     key={photo.id}
                     onClick={() => onOpenPhotoViewer(photo, unit.unitNumber)}
-                    className="aspect-square bg-zinc-900 rounded-lg overflow-hidden border border-zinc-800 cursor-pointer relative group"
+                    className="aspect-square bg-black rounded-[8px] overflow-hidden border border-[#38383a] cursor-pointer relative active:scale-95 transition-transform"
                   >
                     <img src={photo.dataUrl} alt="Before" className="w-full h-full object-cover" />
                   </div>
@@ -155,22 +157,22 @@ export const UnitWorkCard: React.FC<UnitWorkCardProps> = ({
           <button
             type="button"
             onClick={() => beforeCameraRef.current?.click()}
-            className="w-full py-2 px-2 bg-zinc-900 hover:bg-zinc-850 active:scale-[0.98] border border-dashed border-rose-500/30 hover:border-rose-500/60 rounded-lg text-rose-300 text-[11px] font-semibold flex items-center justify-center gap-1.5 transition-all"
+            className="w-full h-10 bg-[#2c2c2e] hover:bg-[#38383a] active:scale-[0.98] border border-[#ff453a]/30 rounded-[10px] text-[#ff453a] text-[12px] font-semibold flex items-center justify-center gap-1.5 transition-all cursor-pointer"
           >
-            <Camera className="w-3.5 h-3.5" />
+            <Camera className="w-3.5 h-3.5 stroke-[2.2]" />
             <span>Snap Damage</span>
           </button>
         </div>
 
         {/* AFTER COLUMN */}
-        <div className="bg-zinc-950/80 border border-zinc-800/80 rounded-xl p-2.5 flex flex-col justify-between min-h-[140px]">
+        <div className="bg-[#2c2c2e]/60 border border-[#3a3a3c]/60 rounded-[14px] p-2.5 flex flex-col justify-between min-h-[140px]">
           <div>
             <div className="flex items-center justify-between mb-2">
-              <span className="text-[11px] font-bold text-emerald-400 uppercase tracking-wide">
-                After / Painted
+              <span className="text-[11px] font-bold uppercase tracking-wider text-[#30d158]">
+                [After Painted]
               </span>
-              <span className="text-[10px] text-zinc-500 font-mono-numbers">
-                {afterPhotos.length} pic{afterPhotos.length === 1 ? '' : 's'}
+              <span className="text-[10px] font-semibold text-[#8e8e93] font-mono-numbers">
+                {afterPhotos.length}
               </span>
             </div>
 
@@ -180,7 +182,7 @@ export const UnitWorkCard: React.FC<UnitWorkCardProps> = ({
                   <div
                     key={photo.id}
                     onClick={() => onOpenPhotoViewer(photo, unit.unitNumber)}
-                    className="aspect-square bg-zinc-900 rounded-lg overflow-hidden border border-zinc-800 cursor-pointer relative group"
+                    className="aspect-square bg-black rounded-[8px] overflow-hidden border border-[#38383a] cursor-pointer relative active:scale-95 transition-transform"
                   >
                     <img src={photo.dataUrl} alt="After" className="w-full h-full object-cover" />
                   </div>
@@ -192,31 +194,44 @@ export const UnitWorkCard: React.FC<UnitWorkCardProps> = ({
           <button
             type="button"
             onClick={() => afterCameraRef.current?.click()}
-            className="w-full py-2 px-2 bg-zinc-900 hover:bg-zinc-850 active:scale-[0.98] border border-dashed border-emerald-500/30 hover:border-emerald-500/60 rounded-lg text-emerald-300 text-[11px] font-semibold flex items-center justify-center gap-1.5 transition-all"
+            className="w-full h-10 bg-[#2c2c2e] hover:bg-[#38383a] active:scale-[0.98] border border-[#30d158]/30 rounded-[10px] text-[#30d158] text-[12px] font-semibold flex items-center justify-center gap-1.5 transition-all cursor-pointer"
           >
-            <Camera className="w-3.5 h-3.5" />
+            <Camera className="w-3.5 h-3.5 stroke-[2.2]" />
             <span>Snap Painted</span>
           </button>
         </div>
       </div>
 
-      {/* Done & Cleaned Floor Toggle */}
+      {/* iOS Native Switch Toggle: Finished & Floors Cleaned */}
       <div
         onClick={() => onUpdateUnit({ ...unit, isCompleted: !unit.isCompleted })}
-        className={`flex items-center justify-between p-2.5 rounded-xl border cursor-pointer select-none transition-all ${
-          unit.isCompleted
-            ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300'
-            : 'bg-zinc-950/40 border-zinc-800 text-zinc-400 hover:border-zinc-700'
-        }`}
+        className="flex items-center justify-between px-3 py-2.5 bg-[#252528] rounded-[12px] border border-[#38383a]/60 cursor-pointer select-none active:bg-[#2c2c2e] transition-colors"
       >
-        <span className="text-xs font-semibold">
-          {unit.isCompleted ? 'Finished, Painted & Floors Cleaned' : 'Mark Unit Done & Cleaned'}
-        </span>
-        {unit.isCompleted ? (
-          <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-        ) : (
-          <Circle className="w-4 h-4 text-zinc-600" />
-        )}
+        <div className="flex items-center gap-2.5">
+          <div
+            className={`w-5 h-5 rounded-full flex items-center justify-center transition-colors ${
+              unit.isCompleted ? 'bg-[#30d158] text-black' : 'bg-[#3a3a3c] text-transparent'
+            }`}
+          >
+            <Check className="w-3 h-3 stroke-[3]" />
+          </div>
+          <span className="text-[13px] font-medium text-white">
+            {unit.isCompleted ? 'Finished, Painted & Cleaned' : 'Mark Done & Floors Cleaned'}
+          </span>
+        </div>
+
+        {/* Native iOS Switch Anatomy */}
+        <div
+          className={`w-[51px] h-[31px] rounded-full p-[2px] transition-colors relative ${
+            unit.isCompleted ? 'bg-[#30d158]' : 'bg-[#39393d]'
+          }`}
+        >
+          <div
+            className={`w-[27px] h-[27px] rounded-full bg-white shadow-[0_3px_8px_rgba(0,0,0,0.25)] transition-transform duration-200 ${
+              unit.isCompleted ? 'translate-x-[20px]' : 'translate-x-0'
+            }`}
+          />
+        </div>
       </div>
     </div>
   );
