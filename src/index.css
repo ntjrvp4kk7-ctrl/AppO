@@ -97,4 +97,47 @@
     border-radius: 8px !important;
     background: #ffffff !important;
   }
+
+  /* Parent container of photos inside .print-unit-card in structured grid */
+  .print-unit-card .photo-grid,
+  .print-unit-card .photos-container,
+  .print-unit-card-photos,
+  .pdf-unit-page .photo-grid {
+    display: grid !important;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)) !important;
+    gap: 10px !important;
+  }
+
+  /* Prevent image stretching and enforce clean page flow */
+  .print-unit-card img,
+  .pdf-unit-page img {
+    object-fit: contain !important;
+    max-height: 220px !important;
+    width: 100% !important;
+    height: auto !important;
+    display: block !important;
+    margin: 0 auto !important;
+    background-color: #0f172a !important;
+  }
 }
+
+/* Also support screen preview for print-unit-card */
+.print-unit-card .photo-grid,
+.print-unit-card .photos-container,
+.print-unit-card-photos,
+.pdf-unit-page .photo-grid {
+  display: grid !important;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)) !important;
+  gap: 10px !important;
+}
+
+.print-unit-card img {
+  object-fit: contain !important;
+  max-height: 260px !important;
+  width: 100% !important;
+  height: auto !important;
+  display: block !important;
+  margin: 0 auto !important;
+}
+
+

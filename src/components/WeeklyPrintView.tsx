@@ -222,7 +222,7 @@ export const WeeklyPrintView: React.FC<WeeklyPrintViewProps> = ({
         return (
           <div
             key={unit.id + '-' + idx}
-            className="pdf-unit-page border-b-2 border-slate-900 pb-6 mb-6 pt-4"
+            className="print-unit-card pdf-unit-page border-b-2 border-slate-900 pb-6 mb-6 pt-4"
             style={{ pageBreakBefore: 'always', breakBefore: 'page' }}
           >
             {/* Header */}
@@ -282,10 +282,10 @@ export const WeeklyPrintView: React.FC<WeeklyPrintViewProps> = ({
                 </div>
 
                 {beforePhotos.length > 0 ? (
-                  <div className="space-y-2">
+                  <div className="photo-grid photos-container">
                     {beforePhotos.map((photo) => (
-                      <div key={photo.id} className="w-full aspect-4/3 bg-slate-100 rounded overflow-hidden border border-rose-300">
-                        <img src={photo.dataUrl} alt="Before Damage" className="w-full h-full object-cover" />
+                      <div key={photo.id} className="w-full bg-slate-950 rounded-lg overflow-hidden border border-rose-300 p-1 flex items-center justify-center">
+                        <img src={photo.dataUrl} alt="Before Damage" />
                       </div>
                     ))}
                   </div>
@@ -308,10 +308,10 @@ export const WeeklyPrintView: React.FC<WeeklyPrintViewProps> = ({
                 </div>
 
                 {afterPhotos.length > 0 ? (
-                  <div className="space-y-2">
+                  <div className="photo-grid photos-container">
                     {afterPhotos.map((photo) => (
-                      <div key={photo.id} className="w-full aspect-4/3 bg-slate-100 rounded overflow-hidden border border-emerald-300">
-                        <img src={photo.dataUrl} alt="After Painted" className="w-full h-full object-cover" />
+                      <div key={photo.id} className="w-full bg-slate-950 rounded-lg overflow-hidden border border-emerald-300 p-1 flex items-center justify-center">
+                        <img src={photo.dataUrl} alt="After Painted" />
                       </div>
                     ))}
                   </div>

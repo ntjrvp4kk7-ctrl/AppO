@@ -457,19 +457,19 @@ export const ReportPreviewModal: React.FC<ReportPreviewModalProps> = ({
                   </div>
 
                   {beforePhotos.length > 0 ? (
-                    <div className="space-y-2">
+                    <div className="photo-grid photos-container">
                       {beforePhotos.map((photo) => (
                         <div
                           key={photo.id}
-                          className="w-full aspect-4/3 bg-slate-900 rounded-xl overflow-hidden border border-rose-200 shadow-sm relative"
+                          className="w-full min-h-[160px] max-h-[260px] bg-slate-950 rounded-xl overflow-hidden border border-rose-200 shadow-sm relative flex items-center justify-center p-1"
                         >
                           <img
                             src={photo.dataUrl}
                             alt="Before Damage"
-                            className="w-full h-full object-cover"
+                            className="max-h-[240px] w-auto max-w-full object-contain mx-auto"
                           />
                           {photo.caption && (
-                            <div className="absolute bottom-0 inset-x-0 bg-black/75 px-2.5 py-1 text-[11px] text-white">
+                            <div className="absolute bottom-0 inset-x-0 bg-black/85 px-2.5 py-1 text-[11px] text-white">
                               {photo.caption}
                             </div>
                           )}
@@ -495,19 +495,19 @@ export const ReportPreviewModal: React.FC<ReportPreviewModalProps> = ({
                   </div>
 
                   {afterPhotos.length > 0 ? (
-                    <div className="space-y-2">
+                    <div className="photo-grid photos-container">
                       {afterPhotos.map((photo) => (
                         <div
                           key={photo.id}
-                          className="w-full aspect-4/3 bg-slate-900 rounded-xl overflow-hidden border border-emerald-200 shadow-sm relative"
+                          className="w-full min-h-[160px] max-h-[260px] bg-slate-950 rounded-xl overflow-hidden border border-emerald-200 shadow-sm relative flex items-center justify-center p-1"
                         >
                           <img
                             src={photo.dataUrl}
                             alt="After Painted"
-                            className="w-full h-full object-cover"
+                            className="max-h-[240px] w-auto max-w-full object-contain mx-auto"
                           />
                           {photo.caption && (
-                            <div className="absolute bottom-0 inset-x-0 bg-black/75 px-2.5 py-1 text-[11px] text-white">
+                            <div className="absolute bottom-0 inset-x-0 bg-black/85 px-2.5 py-1 text-[11px] text-white">
                               {photo.caption}
                             </div>
                           )}
