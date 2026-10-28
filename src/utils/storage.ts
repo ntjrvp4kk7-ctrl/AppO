@@ -1,17 +1,27 @@
 import { DailyWorkLog, UserAccount, UnitWork, UnitPhoto } from '../types/worklog';
 import { getTodayISODate, calculateHours, getWeekRange, formatDisplayDate } from './dateUtils';
-import { createModernSamplePhoto } from './photoUtils';
+import { RECOVERED_UNIT_1324_LOG } from './recoveredData';
 
 const STORAGE_KEY_LOGS = 'paint_patch_worklog_v3';
 const STORAGE_KEY_AUTH = 'paint_patch_auth_v3';
+const STORAGE_KEY_BACKUPS = 'paint_patch_snapshots_v1';
 
 export const DEFAULT_USER: UserAccount = {
-  id: 'user-demo',
-  email: 'painter@worklog.app',
-  workerName: 'Alex Rivera',
-  bossName: 'Dave Miller',
-  bossEmail: 'dave@propertymanagement.com',
+  id: 'user-default',
+  email: 'tbrrabbitbiz@gmail.com',
+  workerName: 'Coleby Braddy',
+  bossName: 'Jermaine',
+  bossEmail: 'tbrrabbitbiz@gmail.com',
 };
+
+export interface WorkLogSnapshot {
+  id: string;
+  timestamp: number;
+  label: string;
+  unitCount: number;
+  totalHours: number;
+  logs: DailyWorkLog[];
+}
 
 export function getStoredAuth(): { token: string | null; user: UserAccount } {
   try {
@@ -19,7 +29,16 @@ export function getStoredAuth(): { token: string | null; user: UserAccount } {
     if (raw) {
       const parsed = JSON.parse(raw);
       if (parsed.user) {
-        return { token: parsed.token || null, user: parsed.user };
+        return {
+          token: parsed.token || null,
+          user: {
+            ...DEFAULT_USER,
+            ...parsed.user,
+            workerName: parsed.user.workerName || 'Coleby Braddy',
+            bossName: parsed.user.bossName || 'Jermaine',
+            bossEmail: parsed.user.bossEmail || 'tbrrabbitbiz@gmail.com',
+          },
+        };
       }
     }
   } catch (e) {
@@ -40,188 +59,91 @@ export function clearStoredAuth(): void {
   localStorage.removeItem(STORAGE_KEY_AUTH);
 }
 
-export function generateSampleLogs(): DailyWorkLog[] {
-  const currentWeek = getWeekRange(new Date());
-  const dates = currentWeek.dates; // Monday to Sunday
+/**
+ * Check if logs contain the unwanted dummy demo units (Unit 304, Unit 306, etc.)
+ */
+export function isDemoData(logs: DailyWorkLog[]): boolean {
+  if (!Array.isArray(logs) || logs.length === 0) return false;
+  return logs.some((l) =>
+    l.units.some(
+      (u) =>
+        u.unitNumber === 'Unit 304' ||
+        u.unitNumber === 'Unit 306' ||
+        u.unitNumber === 'Unit 212' ||
+        u.unitNumber === 'Unit 108' ||
+        (u.notes && u.notes.includes('20min hot mud, sanded, rolled paint')) ||
+        (u.notes && u.notes.includes('Touched up scuffs in hallway'))
+    )
+  );
+}
 
-  const mon = dates[0];
-  const tue = dates[1];
-  const wed = dates[2];
-  const thu = dates[3];
+/**
+ * Automatic rolling snapshots so user work is never lost again
+ */
+export function getSavedSnapshots(): WorkLogSnapshot[] {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY_BACKUPS);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) return parsed;
+    }
+  } catch (e) {
+    console.warn('Could not read snapshots', e);
+  }
+  return [];
+}
 
-  return [
-    {
-      id: `log-${mon}`,
-      date: mon,
-      time: {
-        startTime: '07:30',
-        endTime: '16:00',
-        lunchDeductionMinutes: 30,
-        totalHours: 8.0,
-        overtimeHours: 0,
-      },
-      status: 'Submitted',
-      units: [
-        {
-          id: 'u-1',
-          unitNumber: 'Unit 304',
-          paintColor: 'SW Agreeable Gray',
-          notes: 'Found 2 small holes behind entry door. Mudded with 20min hot mud, sanded, rolled paint, cleaned floors.',
-          isCompleted: true,
-          photos: [
-            {
-              id: 'p-1',
-              type: 'before',
-              dataUrl: createModernSamplePhoto('before', 'Unit 304 - Living Room', 'Small hole behind front door'),
-              timestamp: `${mon}T08:15:00.000Z`,
-              caption: 'Hole found behind door before patch',
-            },
-            {
-              id: 'p-2',
-              type: 'after',
-              dataUrl: createModernSamplePhoto('after', 'Unit 304 - Living Room', 'Patched, painted & floor wiped clean'),
-              timestamp: `${mon}T14:45:00.000Z`,
-              caption: 'Painted with Agreeable Gray, seamless finish',
-            },
-          ],
-        },
-        {
-          id: 'u-2',
-          unitNumber: 'Unit 306',
-          paintColor: 'Pure White (Ceiling & Trim)',
-          notes: 'Touched up scuffs in hallway and baseboards, cleaned up.',
-          isCompleted: true,
-          photos: [
-            {
-              id: 'p-3',
-              type: 'before',
-              dataUrl: createModernSamplePhoto('before', 'Unit 306 - Hallway', 'Heavy scuff marks along hallway wall'),
-              timestamp: `${mon}T15:00:00.000Z`,
-              caption: 'Scuffs and small nail pop before prep',
-            },
-            {
-              id: 'p-4',
-              type: 'after',
-              dataUrl: createModernSamplePhoto('after', 'Unit 306 - Hallway', 'Sanded, rolled 1 coat, wiped clean'),
-              timestamp: `${mon}T15:45:00.000Z`,
-              caption: 'Clean finished hallway',
-            },
-          ],
-        },
-      ],
-    },
-    {
-      id: `log-${tue}`,
-      date: tue,
-      time: {
-        startTime: '07:30',
-        endTime: '16:00',
-        lunchDeductionMinutes: 30,
-        totalHours: 8.0,
-        overtimeHours: 0,
-      },
-      status: 'Submitted',
-      units: [
-        {
-          id: 'u-3',
-          unitNumber: 'Unit 212',
-          paintColor: 'Behr Swiss Coffee',
-          notes: 'Master bedroom drywall stress crack. Mesh taped, 2 coats mud, textured and painted.',
-          isCompleted: true,
-          photos: [
-            {
-              id: 'p-5',
-              type: 'before',
-              dataUrl: createModernSamplePhoto('before', 'Unit 212 - Master Bed', 'Corner wall crack before mud'),
-              timestamp: `${tue}T09:00:00.000Z`,
-              caption: 'Corner crack taped and mudded',
-            },
-            {
-              id: 'p-6',
-              type: 'after',
-              dataUrl: createModernSamplePhoto('after', 'Unit 212 - Master Bed', 'Texture matched, painted & floor vacuumed'),
-              timestamp: `${tue}T15:00:00.000Z`,
-              caption: 'Finished wall and cleaned floors',
-            },
-          ],
-        },
-      ],
-    },
-    {
-      id: `log-${wed}`,
-      date: wed,
-      time: {
-        startTime: '07:30',
-        endTime: '16:00',
-        lunchDeductionMinutes: 30,
-        totalHours: 8.0,
-        overtimeHours: 0,
-      },
-      status: 'Submitted',
-      units: [
-        {
-          id: 'u-4',
-          unitNumber: 'Unit 108',
-          paintColor: 'Repose Gray',
-          notes: 'Kitchen dining area anchor holes patched and wall repainted.',
-          isCompleted: true,
-          photos: [
-            {
-              id: 'p-7',
-              type: 'before',
-              dataUrl: createModernSamplePhoto('before', 'Unit 108 - Dining', 'Wall anchor holes and torn drywall paper'),
-              timestamp: `${wed}T08:30:00.000Z`,
-              caption: 'Damage from anchors removed',
-            },
-            {
-              id: 'p-8',
-              type: 'after',
-              dataUrl: createModernSamplePhoto('after', 'Unit 108 - Dining', 'Skimmed, textured & painted 2 coats'),
-              timestamp: `${wed}T14:30:00.000Z`,
-              caption: 'Wall repainted and floor mopped',
-            },
-          ],
-        },
-      ],
-    },
-    {
-      id: `log-${thu}`,
-      date: thu,
-      time: {
-        startTime: '07:30',
-        endTime: '16:00',
-        lunchDeductionMinutes: 30,
-        totalHours: 8.0,
-        overtimeHours: 0,
-      },
-      status: 'Submitted',
-      units: [
-        {
-          id: 'u-5',
-          unitNumber: 'Unit 415',
-          paintColor: 'SW Alabaster',
-          notes: 'Bath ceiling moisture spot scraped, Kilz primed and painted.',
-          isCompleted: true,
-          photos: [
-            {
-              id: 'p-9',
-              type: 'before',
-              dataUrl: createModernSamplePhoto('before', 'Unit 415 - Bathroom', 'Peeling paint on ceiling spot'),
-              timestamp: `${thu}T10:00:00.000Z`,
-              caption: 'Peeling spot scraped before mud',
-            },
-            {
-              id: 'p-10',
-              type: 'after',
-              dataUrl: createModernSamplePhoto('after', 'Unit 415 - Bathroom', 'Primed, painted flat white, floor cleaned'),
-              timestamp: `${thu}T15:15:00.000Z`,
-              caption: 'Repaired and finished',
-            },
-          ],
-        },
-      ],
-    },
+export function saveSnapshot(logs: DailyWorkLog[], label: string): void {
+  try {
+    if (!Array.isArray(logs) || logs.length === 0) return;
+    const currentSnapshots = getSavedSnapshots();
+    const totalHours = logs.reduce((acc, l) => acc + (l.time?.totalHours || 0), 0);
+    const unitCount = logs.reduce((acc, l) => acc + (l.units?.length || 0), 0);
+
+    const newSnapshot: WorkLogSnapshot = {
+      id: `snap-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`,
+      timestamp: Date.now(),
+      label,
+      unitCount,
+      totalHours,
+      logs: JSON.parse(JSON.stringify(logs)),
+    };
+
+    // Keep up to 20 newest snapshots
+    const updated = [newSnapshot, ...currentSnapshots].slice(0, 20);
+    localStorage.setItem(STORAGE_KEY_BACKUPS, JSON.stringify(updated));
+  } catch (e) {
+    console.warn('Snapshot creation skipped', e);
+  }
+}
+
+/**
+ * Check older localStorage keys to recover previous work
+ */
+export function scanAndRecoverLegacyData(): DailyWorkLog[] | null {
+  const legacyKeys = [
+    'paint_patch_worklog_v2',
+    'paint_patch_worklog_v1',
+    'paint_patch_worklog',
+    'paint_patch_logs',
+    'fieldlog_logs',
+    'worklogs',
   ];
+
+  for (const k of legacyKeys) {
+    try {
+      const raw = localStorage.getItem(k);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed) && parsed.length > 0 && !isDemoData(parsed)) {
+          return parsed;
+        }
+      }
+    } catch {
+      // Continue search
+    }
+  }
+  return null;
 }
 
 export function getStoredLogs(): DailyWorkLog[] {
@@ -229,25 +151,95 @@ export function getStoredLogs(): DailyWorkLog[] {
     const raw = localStorage.getItem(STORAGE_KEY_LOGS);
     if (raw) {
       const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed) && parsed.length > 0) {
-        return parsed;
+      if (Array.isArray(parsed)) {
+        // If it was overwritten by the demo button, automatically replace with user's recovered Unit 1324
+        if (isDemoData(parsed)) {
+          console.warn('Detected unwanted demo data; replacing with recovered Unit 1324 data.');
+          const recovered = [RECOVERED_UNIT_1324_LOG];
+          saveStoredLogs(recovered, 'Automatic recovery of Unit 1324');
+          return recovered;
+        }
+        if (parsed.length > 0) {
+          return parsed;
+        }
       }
     }
   } catch (e) {
     console.error('Failed reading logs from localStorage', e);
   }
 
-  const seeds = generateSampleLogs();
-  saveStoredLogs(seeds);
-  return seeds;
+  // Check legacy keys
+  const legacy = scanAndRecoverLegacyData();
+  if (legacy && legacy.length > 0) {
+    saveStoredLogs(legacy, 'Recovered from previous version');
+    return legacy;
+  }
+
+  // Clean default: Return the recovered real user Unit 1324 log (Coleby Braddy, Jermaine)
+  const recovered = [RECOVERED_UNIT_1324_LOG];
+  saveStoredLogs(recovered, 'Restored initial real work log');
+  return recovered;
 }
 
-export function saveStoredLogs(logs: DailyWorkLog[]): void {
+export function saveStoredLogs(logs: DailyWorkLog[], reason = 'Save'): void {
   try {
+    // Take a snapshot before saving changes if we already have non-demo logs
+    const existingRaw = localStorage.getItem(STORAGE_KEY_LOGS);
+    if (existingRaw) {
+      try {
+        const existing = JSON.parse(existingRaw);
+        if (Array.isArray(existing) && existing.length > 0 && !isDemoData(existing)) {
+          saveSnapshot(existing, `Backup before: ${reason}`);
+        }
+      } catch {
+        // ignore
+      }
+    }
     localStorage.setItem(STORAGE_KEY_LOGS, JSON.stringify(logs));
   } catch (e) {
     console.error('Failed saving logs to localStorage', e);
   }
+}
+
+/**
+ * Restore user's real Unit 1324 log from Monday Oct 26
+ */
+export function restoreUserUnit1324(currentLogs: DailyWorkLog[]): DailyWorkLog[] {
+  const existingIndex = currentLogs.findIndex((l) => l.date === RECOVERED_UNIT_1324_LOG.date);
+  let updated: DailyWorkLog[];
+
+  if (existingIndex >= 0) {
+    updated = [...currentLogs];
+    // Check if Unit 1324 is already in units
+    const hasUnit1324 = updated[existingIndex].units.some((u) => u.unitNumber.includes('1324'));
+    if (!hasUnit1324) {
+      updated[existingIndex] = {
+        ...updated[existingIndex],
+        time: RECOVERED_UNIT_1324_LOG.time,
+        units: [...RECOVERED_UNIT_1324_LOG.units, ...updated[existingIndex].units],
+      };
+    } else {
+      updated[existingIndex] = RECOVERED_UNIT_1324_LOG;
+    }
+  } else {
+    updated = [RECOVERED_UNIT_1324_LOG, ...currentLogs];
+  }
+
+  saveStoredLogs(updated, 'Restored Unit 1324 with photos');
+  return updated;
+}
+
+/**
+ * Rollback to a saved snapshot
+ */
+export function restoreFromSnapshot(snapshotId: string): DailyWorkLog[] | null {
+  const snapshots = getSavedSnapshots();
+  const target = snapshots.find((s) => s.id === snapshotId);
+  if (target && Array.isArray(target.logs)) {
+    saveStoredLogs(target.logs, `Restored snapshot: ${target.label}`);
+    return target.logs;
+  }
+  return null;
 }
 
 export function getLogForDate(dateStr: string, logs: DailyWorkLog[]): DailyWorkLog {
@@ -279,7 +271,7 @@ export function saveOrUpdateLog(log: DailyWorkLog, logs: DailyWorkLog[]): DailyW
   } else {
     updated = [log, ...logs];
   }
-  saveStoredLogs(updated);
+  saveStoredLogs(updated, `Updated log for ${log.date}`);
   syncLogsToServer(updated);
   return updated;
 }
@@ -316,8 +308,8 @@ export async function fetchLogsFromServer(): Promise<DailyWorkLog[] | null> {
     });
     if (res.ok) {
       const data = await res.json();
-      if (Array.isArray(data.logs)) {
-        saveStoredLogs(data.logs);
+      if (Array.isArray(data.logs) && data.logs.length > 0 && !isDemoData(data.logs)) {
+        saveStoredLogs(data.logs, 'Fetched from server account');
         return data.logs;
       }
     }
@@ -327,7 +319,11 @@ export async function fetchLogsFromServer(): Promise<DailyWorkLog[] | null> {
   return null;
 }
 
-export function generateBossEmailContent(dates: string[], logs: DailyWorkLog[], profile: UserAccount): { subject: string; body: string; mailtoUrl: string } {
+export function generateBossEmailContent(
+  dates: string[],
+  logs: DailyWorkLog[],
+  profile: UserAccount
+): { subject: string; body: string; mailtoUrl: string } {
   const weekStart = formatDisplayDate(dates[0]);
   const weekEnd = formatDisplayDate(dates[6]);
 
@@ -339,7 +335,11 @@ export function generateBossEmailContent(dates: string[], logs: DailyWorkLog[], 
 
   const dailyLines = dates.map((dateStr) => {
     const log = logs.find((l) => l.date === dateStr);
-    const day = new Date(dateStr + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'numeric', day: 'numeric' });
+    const day = new Date(dateStr + 'T12:00:00').toLocaleDateString('en-US', {
+      weekday: 'short',
+      month: 'numeric',
+      day: 'numeric',
+    });
     if (log) {
       totalHours += log.time.totalHours;
       totalOt += log.time.overtimeHours;
@@ -347,7 +347,9 @@ export function generateBossEmailContent(dates: string[], logs: DailyWorkLog[], 
       log.units.forEach((u) => {
         const beforeCount = u.photos.filter((p) => p.type === 'before').length;
         const afterCount = u.photos.filter((p) => p.type === 'after').length;
-        unitSummaries.push(`• [${dateStr}] ${u.unitNumber}: ${u.paintColor || 'Standard'} | ${u.notes || 'Patched and painted'} (${beforeCount} before pics, ${afterCount} after pics)`);
+        unitSummaries.push(
+          `• [${dateStr}] ${u.unitNumber}: ${u.paintColor || 'Standard'} | ${u.notes || 'Patched and painted'} (${beforeCount} before pics, ${afterCount} after pics)`
+        );
       });
 
       return `${day}: ${log.time.startTime} - ${log.time.endTime} (${log.time.totalHours.toFixed(1)} hrs) • ${u_count(log.units.length)}`;

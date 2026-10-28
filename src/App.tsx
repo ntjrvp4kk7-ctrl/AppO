@@ -15,6 +15,8 @@ import {
   Wifi,
   Battery,
   Sparkles,
+  History,
+  ShieldCheck,
 } from 'lucide-react';
 
 import { DailyWorkLog, UserAccount, UnitPhoto, UnitWork, TimeSection } from './types/worklog';
@@ -27,7 +29,8 @@ import {
   saveStoredAuth,
   clearStoredAuth,
   fetchLogsFromServer,
-  generateSampleLogs,
+  restoreUserUnit1324,
+  isDemoData,
 } from './utils/storage';
 import { formatDisplayDate, getTodayISODate, getWeekRange } from './utils/dateUtils';
 
@@ -70,6 +73,16 @@ export default function App() {
     }
     syncRemote();
   }, [auth.token]);
+
+  useEffect(() => {
+    if (isDemoData(logs)) {
+      const restored = restoreUserUnit1324([]);
+      setLogs(restored);
+      setCurrentDate('2026-10-26');
+      setActiveLog(getLogForDate('2026-10-26', restored));
+      showToast('Restored Unit 1324 work & photos! Demo presets removed.');
+    }
+  }, []);
 
   useEffect(() => {
     setActiveLog(getLogForDate(currentDate, logs));
@@ -154,12 +167,19 @@ export default function App() {
     showToast('Signed out');
   };
 
-  const handleResetDemoData = () => {
-    const seeds = generateSampleLogs();
-    saveStoredLogs(seeds);
-    setLogs(seeds);
-    setCurrentDate(getTodayISODate());
-    showToast('Loaded demo week');
+  const handleRestoreUnit1324 = () => {
+    const updated = restoreUserUnit1324(logs);
+    setLogs(updated);
+    setCurrentDate('2026-10-26');
+    setActiveLog(getLogForDate('2026-10-26', updated));
+    setActiveTab('today');
+    showToast('Restored Unit 1324 work & photos!');
+  };
+
+  const handleRestoreSnapshotLogs = (restoredLogs: DailyWorkLog[]) => {
+    setLogs(restoredLogs);
+    setActiveLog(getLogForDate(currentDate, restoredLogs));
+    showToast('Restored from backup snapshot');
   };
 
   const handleClearAllData = () => {
@@ -483,18 +503,32 @@ export default function App() {
                 </button>
               </div>
 
-              {/* Quick Actions Card */}
+              {/* Data Recovery & Backups Card */}
               <div>
-                <span className="text-[13px] font-semibold uppercase tracking-wider text-[#8E8E93] px-3 mb-1.5 block">
-                  Quick Tools
+                <span className="text-[13px] font-semibold uppercase tracking-wider text-[#30D158] px-3 mb-1.5 flex items-center gap-1.5">
+                  <ShieldCheck className="w-4 h-4" /> Data Recovery & Safety
                 </span>
                 <div className="bg-[#1C1C1E] rounded-[16px] border border-[#2C2C2E] overflow-hidden divide-y divide-[#2C2C2E]">
                   <button
                     type="button"
-                    onClick={handleResetDemoData}
+                    onClick={handleRestoreUnit1324}
+                    className="w-full p-4 text-left flex items-center justify-between text-[15px] text-[#30D158] hover:bg-[#30D158]/10"
+                  >
+                    <div className="flex items-center gap-3">
+                      <History className="w-5 h-5 text-[#30D158]" />
+                      <div>
+                        <span className="font-semibold block">Restore Unit 1324 (Monday Oct 26)</span>
+                        <span className="text-[12px] text-[#8E8E93]">Recovers your 7.5 hrs, Unit 1324 & 4 real photos</span>
+                      </div>
+                    </div>
+                    <ChevronRight className="w-4 h-4 text-[#8E8E93]" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setIsSettingsOpen(true)}
                     className="w-full p-4 text-left flex items-center justify-between text-[15px] text-white hover:bg-[#2C2C2E]/40"
                   >
-                    <span>Load Demo Week (Units & Photos)</span>
+                    <span>View Safety Snapshots & Rollbacks</span>
                     <ChevronRight className="w-4 h-4 text-[#8E8E93]" />
                   </button>
                   <button
@@ -502,7 +536,7 @@ export default function App() {
                     onClick={handleClearAllData}
                     className="w-full p-4 text-left flex items-center justify-between text-[15px] text-[#FF453A] hover:bg-[#FF453A]/10"
                   >
-                    <span>Reset & Clear Local Storage</span>
+                    <span>Clear All Work Logs (Blank Week)</span>
                     <ChevronRight className="w-4 h-4 text-[#8E8E93]" />
                   </button>
                 </div>
@@ -617,8 +651,9 @@ export default function App() {
         }}
         onOpenAuth={() => setIsAuthModalOpen(true)}
         onLogout={handleLogout}
-        onResetDemoData={handleResetDemoData}
+        onRestoreUnit1324={handleRestoreUnit1324}
         onClearAllData={handleClearAllData}
+        onRestoreSnapshotLogs={handleRestoreSnapshotLogs}
       />
 
       {/* Auth Modal */}

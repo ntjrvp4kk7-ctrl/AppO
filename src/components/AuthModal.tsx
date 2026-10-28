@@ -275,7 +275,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, currentUser, onClo
                 onClick={handleDemoSignIn}
                 className="text-[13px] text-[#0A84FF] hover:underline"
               >
-                Instant Demo Sign In (Coleby Braddy)
+                Quick Sign In (Coleby Braddy)
               </button>
             </div>
           )}
