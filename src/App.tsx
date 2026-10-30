@@ -23,6 +23,7 @@ import {
 import { DailyWorkLog, UserAccount, UnitPhoto, UnitWork, TimeSection } from './types/worklog';
 import {
   getStoredLogs,
+  getStoredLogsAsync,
   saveStoredLogs,
   getLogForDate,
   saveOrUpdateLog,
@@ -65,6 +66,20 @@ export default function App() {
   const [viewingPhoto, setViewingPhoto] = useState<{ photo: UnitPhoto; unitLabel?: string } | null>(null);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    async function loadIndexedDb() {
+      try {
+        const idbLogs = await getStoredLogsAsync();
+        if (idbLogs && idbLogs.length > 0) {
+          setLogs(idbLogs);
+        }
+      } catch (err) {
+        console.warn('Failed loading async logs from IndexedDB', err);
+      }
+    }
+    loadIndexedDb();
+  }, []);
 
   useEffect(() => {
     async function syncRemote() {

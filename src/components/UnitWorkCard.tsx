@@ -1,5 +1,5 @@
 import React, { useRef, useState } from 'react';
-import { Camera, Trash2, Check, Paintbrush, FileText, Images, Loader2 } from 'lucide-react';
+import { Camera, Trash2, Check, Paintbrush, FileText, Images, Loader2, FolderOpen, Upload } from 'lucide-react';
 import { UnitWork, UnitPhoto } from '../types/worklog';
 import { compressImage } from '../utils/photoUtils';
 
@@ -31,7 +31,7 @@ export const UnitWorkCard: React.FC<UnitWorkCardProps> = ({
       const newPhotos: UnitPhoto[] = [];
       for (let i = 0; i < files.length; i++) {
         const file = files[i];
-        const compressedDataUrl = await compressImage(file, 1280, 0.78);
+        const compressedDataUrl = await compressImage(file, 1024, 0.68);
         newPhotos.push({
           id: `photo-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}-${i}`,
           dataUrl: compressedDataUrl,
@@ -46,8 +46,7 @@ export const UnitWorkCard: React.FC<UnitWorkCardProps> = ({
         photos: [...newPhotos, ...unit.photos],
       });
     } catch (err) {
-      console.error('Error saving photo', err);
-      alert('Could not attach photo. Please try again.');
+      console.error('Error attaching photo:', err);
     } finally {
       setIsProcessing(null);
       e.target.value = '';
@@ -77,11 +76,11 @@ export const UnitWorkCard: React.FC<UnitWorkCardProps> = ({
         className="hidden"
       />
 
-      {/* Hidden file inputs: Upload from Camera Roll / Photo Library */}
+      {/* Hidden file inputs: Upload from Camera Roll / Files / Photo Library */}
       <input
         type="file"
         ref={beforeGalleryRef}
-        accept="image/*"
+        accept="image/*,.heic,.heif,.jpg,.jpeg,.png,.webp"
         multiple
         onChange={(e) => handleCapture(e, 'before')}
         className="hidden"
@@ -89,7 +88,7 @@ export const UnitWorkCard: React.FC<UnitWorkCardProps> = ({
       <input
         type="file"
         ref={afterGalleryRef}
-        accept="image/*"
+        accept="image/*,.heic,.heif,.jpg,.jpeg,.png,.webp"
         multiple
         onChange={(e) => handleCapture(e, 'after')}
         className="hidden"
@@ -178,7 +177,17 @@ export const UnitWorkCard: React.FC<UnitWorkCardProps> = ({
                   </div>
                 ))}
               </div>
-            ) : null}
+            ) : (
+              <div
+                onClick={() => beforeGalleryRef.current?.click()}
+                className="border border-dashed border-[#ff453a]/30 hover:border-[#ff453a]/60 rounded-[10px] p-2.5 text-center my-1 bg-[#ff453a]/5 cursor-pointer active:scale-95 transition-all"
+                title="Select from Camera Roll or Files"
+              >
+                <FolderOpen className="w-4 h-4 mx-auto text-[#ff453a] mb-1" />
+                <span className="text-[10px] font-semibold text-white block">No Damage Pics</span>
+                <span className="text-[9px] text-[#8e8e93] block">Snap or pick from files</span>
+              </div>
+            )}
           </div>
 
           <div className="grid grid-cols-2 gap-1.5 mt-auto pt-2">
@@ -187,24 +196,24 @@ export const UnitWorkCard: React.FC<UnitWorkCardProps> = ({
               disabled={isProcessing === 'before'}
               onClick={() => beforeCameraRef.current?.click()}
               className="h-9 bg-[#2c2c2e] hover:bg-[#38383a] active:scale-[0.97] border border-[#ff453a]/30 rounded-[10px] text-[#ff453a] text-[11px] font-semibold flex items-center justify-center gap-1 transition-all cursor-pointer disabled:opacity-50"
-              title="Snap damage photo with live camera"
+              title="Snap live damage photo with camera"
             >
               {isProcessing === 'before' ? (
                 <Loader2 className="w-3.5 h-3.5 animate-spin" />
               ) : (
                 <Camera className="w-3.5 h-3.5 stroke-[2.2]" />
               )}
-              <span>Snap</span>
+              <span>Camera</span>
             </button>
             <button
               type="button"
               disabled={isProcessing === 'before'}
               onClick={() => beforeGalleryRef.current?.click()}
               className="h-9 bg-[#2c2c2e] hover:bg-[#38383a] active:scale-[0.97] border border-[#ff453a]/30 rounded-[10px] text-[#ff453a] text-[11px] font-semibold flex items-center justify-center gap-1 transition-all cursor-pointer disabled:opacity-50"
-              title="Upload photos from Camera Roll / Library"
+              title="Upload from Camera Roll or Files"
             >
-              <Images className="w-3.5 h-3.5 stroke-[2.2]" />
-              <span>Roll</span>
+              <FolderOpen className="w-3.5 h-3.5 stroke-[2.2]" />
+              <span>Files / Roll</span>
             </button>
           </div>
         </div>
@@ -233,7 +242,17 @@ export const UnitWorkCard: React.FC<UnitWorkCardProps> = ({
                   </div>
                 ))}
               </div>
-            ) : null}
+            ) : (
+              <div
+                onClick={() => afterGalleryRef.current?.click()}
+                className="border border-dashed border-[#30d158]/30 hover:border-[#30d158]/60 rounded-[10px] p-2.5 text-center my-1 bg-[#30d158]/5 cursor-pointer active:scale-95 transition-all"
+                title="Select from Camera Roll or Files"
+              >
+                <FolderOpen className="w-4 h-4 mx-auto text-[#30d158] mb-1" />
+                <span className="text-[10px] font-semibold text-white block">No Painted Pics</span>
+                <span className="text-[9px] text-[#8e8e93] block">Snap or pick from files</span>
+              </div>
+            )}
           </div>
 
           <div className="grid grid-cols-2 gap-1.5 mt-auto pt-2">
@@ -242,24 +261,24 @@ export const UnitWorkCard: React.FC<UnitWorkCardProps> = ({
               disabled={isProcessing === 'after'}
               onClick={() => afterCameraRef.current?.click()}
               className="h-9 bg-[#2c2c2e] hover:bg-[#38383a] active:scale-[0.97] border border-[#30d158]/30 rounded-[10px] text-[#30d158] text-[11px] font-semibold flex items-center justify-center gap-1 transition-all cursor-pointer disabled:opacity-50"
-              title="Snap painted photo with live camera"
+              title="Snap live painted photo with camera"
             >
               {isProcessing === 'after' ? (
                 <Loader2 className="w-3.5 h-3.5 animate-spin" />
               ) : (
                 <Camera className="w-3.5 h-3.5 stroke-[2.2]" />
               )}
-              <span>Snap</span>
+              <span>Camera</span>
             </button>
             <button
               type="button"
               disabled={isProcessing === 'after'}
               onClick={() => afterGalleryRef.current?.click()}
               className="h-9 bg-[#2c2c2e] hover:bg-[#38383a] active:scale-[0.97] border border-[#30d158]/30 rounded-[10px] text-[#30d158] text-[11px] font-semibold flex items-center justify-center gap-1 transition-all cursor-pointer disabled:opacity-50"
-              title="Upload photos from Camera Roll / Library"
+              title="Upload from Camera Roll or Files"
             >
-              <Images className="w-3.5 h-3.5 stroke-[2.2]" />
-              <span>Roll</span>
+              <FolderOpen className="w-3.5 h-3.5 stroke-[2.2]" />
+              <span>Files / Roll</span>
             </button>
           </div>
         </div>

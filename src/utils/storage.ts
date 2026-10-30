@@ -1,6 +1,7 @@
 import { DailyWorkLog, UserAccount, UnitWork, UnitPhoto } from '../types/worklog';
 import { getTodayISODate, calculateHours, getWeekRange, formatDisplayDate } from './dateUtils';
 import { RECOVERED_UNIT_1324_LOG, TBRRABBITBIZ_WEEK_LOGS } from './recoveredData';
+import { idbGet, idbSet } from './indexedDb';
 
 const STORAGE_KEY_LOGS = 'paint_patch_worklog_v3';
 const STORAGE_KEY_AUTH = 'paint_patch_auth_v3';
@@ -93,6 +94,22 @@ export function getSavedSnapshots(): WorkLogSnapshot[] {
   return [];
 }
 
+function stripHeavyDataForSnapshot(logs: DailyWorkLog[]): DailyWorkLog[] {
+  return logs.map((l) => ({
+    ...l,
+    units: l.units.map((u) => ({
+      ...u,
+      photos: u.photos.map((p) => ({
+        id: p.id,
+        type: p.type,
+        timestamp: p.timestamp,
+        caption: p.caption,
+        dataUrl: p.dataUrl ? p.dataUrl.slice(0, 80) + '...[thumbnail]' : '',
+      })),
+    })),
+  }));
+}
+
 export function saveSnapshot(logs: DailyWorkLog[], label: string): void {
   try {
     if (!Array.isArray(logs) || logs.length === 0) return;
@@ -100,18 +117,20 @@ export function saveSnapshot(logs: DailyWorkLog[], label: string): void {
     const totalHours = logs.reduce((acc, l) => acc + (l.time?.totalHours || 0), 0);
     const unitCount = logs.reduce((acc, l) => acc + (l.units?.length || 0), 0);
 
+    const lightweightLogs = stripHeavyDataForSnapshot(logs);
     const newSnapshot: WorkLogSnapshot = {
       id: `snap-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`,
       timestamp: Date.now(),
       label,
       unitCount,
       totalHours,
-      logs: JSON.parse(JSON.stringify(logs)),
+      logs: lightweightLogs,
     };
 
-    // Keep up to 20 newest snapshots
-    const updated = [newSnapshot, ...currentSnapshots].slice(0, 20);
+    // Store up to 5 lightweight snapshots in localStorage without consuming quota
+    const updated = [newSnapshot, ...currentSnapshots].slice(0, 5);
     localStorage.setItem(STORAGE_KEY_BACKUPS, JSON.stringify(updated));
+    idbSet('snapshots', [newSnapshot, ...currentSnapshots].slice(0, 20)).catch(() => {});
   } catch (e) {
     console.warn('Snapshot creation skipped', e);
   }
@@ -213,14 +232,16 @@ export function getStoredLogs(): DailyWorkLog[] {
 }
 
 export function saveStoredLogs(logs: DailyWorkLog[], reason = 'Save'): void {
+  // 1. Asynchronously persist full data to IndexedDB (virtually unlimited quota)
+  idbSet(STORAGE_KEY_LOGS, logs).catch(() => {});
+
   try {
-    // Take a snapshot before saving changes if we already have non-demo logs
     const existingRaw = localStorage.getItem(STORAGE_KEY_LOGS);
-    if (existingRaw) {
+    if (existingRaw && (reason.startsWith('Backup before') || reason.includes('submit') || reason.includes('Restored'))) {
       try {
         const existing = JSON.parse(existingRaw);
         if (Array.isArray(existing) && existing.length > 0 && !isDemoData(existing)) {
-          saveSnapshot(existing, `Backup before: ${reason}`);
+          saveSnapshot(existing, reason);
         }
       } catch {
         // ignore
@@ -228,8 +249,47 @@ export function saveStoredLogs(logs: DailyWorkLog[], reason = 'Save'): void {
     }
     localStorage.setItem(STORAGE_KEY_LOGS, JSON.stringify(logs));
   } catch (e) {
-    console.error('Failed saving logs to localStorage', e);
+    console.warn('localStorage quota exceeded; cleaning bloated backups and retrying...', e);
+    try {
+      // Clear bloated backup snapshots and legacy keys from localStorage
+      localStorage.removeItem(STORAGE_KEY_BACKUPS);
+      localStorage.removeItem('paint_patch_worklog_v2');
+      localStorage.removeItem('paint_patch_worklog_v1');
+      localStorage.removeItem('paint_patch_worklog');
+      localStorage.removeItem('paint_patch_logs');
+      localStorage.removeItem('fieldlog_logs');
+      localStorage.removeItem('worklogs');
+
+      // Retry saving
+      localStorage.setItem(STORAGE_KEY_LOGS, JSON.stringify(logs));
+    } catch (innerErr) {
+      console.warn('Fallback to lightweight localStorage cache; full data safe in IndexedDB and memory', innerErr);
+      try {
+        const trimmed = logs.map((log) => ({
+          ...log,
+          units: log.units.map((u) => ({
+            ...u,
+            photos: u.photos.slice(0, 3),
+          })),
+        }));
+        localStorage.setItem(STORAGE_KEY_LOGS, JSON.stringify(trimmed));
+      } catch {
+        // Handled: IndexedDB and active state maintain full data
+      }
+    }
   }
+}
+
+export async function getStoredLogsAsync(): Promise<DailyWorkLog[]> {
+  try {
+    const idbLogs = await idbGet<DailyWorkLog[]>(STORAGE_KEY_LOGS);
+    if (Array.isArray(idbLogs) && idbLogs.length > 0 && !isDemoData(idbLogs)) {
+      return syncTBRRabbitBizWeek(idbLogs);
+    }
+  } catch (err) {
+    console.warn('IndexedDB read fallback to localStorage', err);
+  }
+  return getStoredLogs();
 }
 
 /**

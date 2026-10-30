@@ -74,18 +74,16 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
     } catch (e) {
-      alert('Could not download backup file');
+      console.error('Could not download backup file', e);
     }
   };
 
   const handleRollback = (snap: WorkLogSnapshot) => {
-    if (confirm(`Restore backup from ${new Date(snap.timestamp).toLocaleTimeString()} (${snap.unitCount} units)?`)) {
-      const restored = restoreFromSnapshot(snap.id);
-      if (restored) {
-        onRestoreSnapshotLogs(restored);
-        setShowSnapshots(false);
-        onClose();
-      }
+    const restored = restoreFromSnapshot(snap.id);
+    if (restored) {
+      onRestoreSnapshotLogs(restored);
+      setShowSnapshots(false);
+      onClose();
     }
   };
 

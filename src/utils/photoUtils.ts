@@ -1,4 +1,4 @@
-export async function compressImage(file: File, maxDimension = 1280, quality = 0.78): Promise<string> {
+export async function compressImage(file: File, maxDimension = 1024, quality = 0.68): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = (readerEvent) => {
@@ -33,7 +33,14 @@ export async function compressImage(file: File, maxDimension = 1280, quality = 0
         const dataUrl = canvas.toDataURL('image/jpeg', quality);
         resolve(dataUrl);
       };
-      img.onerror = () => reject(new Error('Failed to load image for compression'));
+      img.onerror = () => {
+        // Fallback: if browser canvas fails, resolve with raw data URL so file upload still succeeds
+        if (readerEvent.target?.result) {
+          resolve(readerEvent.target.result as string);
+        } else {
+          reject(new Error('Failed to load image'));
+        }
+      };
       img.src = readerEvent.target?.result as string;
     };
     reader.onerror = () => reject(new Error('Failed to read file'));
