@@ -253,10 +253,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   </div>
                   <div>
                     <span className="text-[15px] font-semibold text-[#30D158] block">
-                      Restore Unit 1324 Work & Photos
+                      Update TBRRABBITBIZ Work Week
                     </span>
                     <span className="text-[12px] text-[#8E8E93]">
-                      Restores Monday Oct 26 (7.5 hrs, Unit 1324, real photos)
+                      Full schedule: Olympus, Legends North, Marsh Point, Old Folks Home (Oct 26 - 30)
                     </span>
                   </div>
                 </div>

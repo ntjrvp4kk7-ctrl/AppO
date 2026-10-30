@@ -44,6 +44,116 @@ function saveDatabase(db) {
 
 let database = loadDatabase();
 
+// Pre-seed default user and work week for TBRRABBITBIZ@gmail.com
+const TBR_EMAIL = 'tbrrabbitbiz@gmail.com';
+let tbrUser = database.users.find((u) => u.email.toLowerCase() === TBR_EMAIL);
+if (!tbrUser) {
+  tbrUser = {
+    id: 'user-tbrrabbitbiz',
+    email: TBR_EMAIL,
+    passwordHash: 'password',
+    workerName: 'Coleby Braddy',
+    bossName: 'Jermaine',
+    bossEmail: TBR_EMAIL,
+    createdAt: new Date().toISOString(),
+  };
+  database.users.push(tbrUser);
+}
+
+if (!database.logs[tbrUser.id] || database.logs[tbrUser.id].length === 0) {
+  database.logs[tbrUser.id] = [
+    {
+      id: 'log-2026-10-26',
+      date: '2026-10-26',
+      time: { startTime: '09:00', endTime: '17:00', lunchDeductionMinutes: 30, totalHours: 7.5, overtimeHours: 0 },
+      status: 'Submitted',
+      units: [
+        {
+          id: 'unit-1324',
+          unitNumber: '1324 2 Bedroom / Olympus',
+          paintColor: 'Mini Nail Hole Fixes',
+          notes: '1324 2 Bedroom / Olympus. Found small holes/drywall damage, patched with mud, sanded smooth, rolled paint, cleaned floors.',
+          isCompleted: true,
+          photos: []
+        }
+      ]
+    },
+    {
+      id: 'log-2026-10-27',
+      date: '2026-10-27',
+      time: { startTime: '10:30', endTime: '19:00', lunchDeductionMinutes: 30, totalHours: 8.0, overtimeHours: 0 },
+      status: 'Submitted',
+      units: [
+        {
+          id: 'unit-20261027-legends-north',
+          unitNumber: '3 Bedroom / Legends North',
+          paintColor: 'Standard Turnover',
+          notes: '3 Bedroom / Legends North (10:30 am - 7:00 pm). Repaired drywall, rolled walls, trim touched up, floors cleaned.',
+          isCompleted: true,
+          photos: []
+        }
+      ]
+    },
+    {
+      id: 'log-2026-10-28',
+      date: '2026-10-28',
+      time: { startTime: '09:00', endTime: '17:00', lunchDeductionMinutes: 60, totalHours: 7.0, overtimeHours: 0 },
+      status: 'Submitted',
+      units: [
+        {
+          id: 'unit-20261028-marsh-point',
+          unitNumber: '315 1 Bedroom / Marsh Point',
+          paintColor: 'Standard Paint',
+          notes: 'Start: 9:00 am - Finish: 3:00 pm. 1 Bedroom unit repairs and paint at Marsh Point.',
+          isCompleted: true,
+          photos: []
+        },
+        {
+          id: 'unit-20261028-old-folks-home',
+          unitNumber: 'Old Folks Home',
+          paintColor: 'Touch-up & Trim',
+          notes: 'Start: 4:00 pm - Finish: 5:00 pm. Wall patch and paint touch-up at Old Folks Home.',
+          isCompleted: true,
+          photos: []
+        }
+      ]
+    },
+    {
+      id: 'log-2026-10-29',
+      date: '2026-10-29',
+      time: { startTime: '09:30', endTime: '15:30', lunchDeductionMinutes: 0, totalHours: 6.0, overtimeHours: 0 },
+      status: 'Submitted',
+      units: [
+        {
+          id: 'unit-20261029-olympus',
+          unitNumber: '315 1 Bedroom / Olympus',
+          paintColor: 'Standard Paint',
+          notes: 'Start: 9:30 am - Finish: 3:30 pm. 1 Bedroom unit repairs and paint at Olympus.',
+          isCompleted: true,
+          photos: []
+        }
+      ]
+    },
+    {
+      id: 'log-2026-10-30',
+      date: '2026-10-30',
+      time: { startTime: '09:30', endTime: '16:30', lunchDeductionMinutes: 0, totalHours: 7.0, overtimeHours: 0 },
+      status: 'Submitted',
+      units: [
+        {
+          id: 'unit-20261030-marsh-point-315',
+          unitNumber: 'Marsh Point 315',
+          paintColor: 'Primer & Repairs',
+          notes: 'Start: 9:30 am - Finish: 4:30 pm. Tons Of Repairs. Day 1 Primed all walls and doors and ceilings.',
+          isCompleted: true,
+          photos: []
+        }
+      ]
+    }
+  ];
+  saveDatabase(database);
+}
+
 // Auth Middleware
 function authMiddleware(req, res, next) {
   const authHeader = req.headers.authorization;

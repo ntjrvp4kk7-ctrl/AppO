@@ -17,6 +17,7 @@ import {
   Sparkles,
   History,
   ShieldCheck,
+  Copy,
 } from 'lucide-react';
 
 import { DailyWorkLog, UserAccount, UnitPhoto, UnitWork, TimeSection } from './types/worklog';
@@ -30,6 +31,7 @@ import {
   clearStoredAuth,
   fetchLogsFromServer,
   restoreUserUnit1324,
+  restoreTBRRabbitBizWeek,
   isDemoData,
 } from './utils/storage';
 import { formatDisplayDate, getTodayISODate, getWeekRange } from './utils/dateUtils';
@@ -132,6 +134,48 @@ export default function App() {
     showToast('New unit added');
   };
 
+  const handleCopyFromYesterday = () => {
+    // 1. Calculate yesterday's date
+    const [y, m, d] = currentDate.split('-').map(Number);
+    const prevDate = new Date(y, m - 1, d);
+    prevDate.setDate(prevDate.getDate() - 1);
+    const yesterdayIso = `${prevDate.getFullYear()}-${String(prevDate.getMonth() + 1).padStart(2, '0')}-${String(prevDate.getDate()).padStart(2, '0')}`;
+
+    // 2. Find yesterday's log, or most recent prior log with units
+    let sourceLog = logs.find((l) => l.date === yesterdayIso && l.units && l.units.length > 0);
+    if (!sourceLog) {
+      const priorLogs = logs
+        .filter((l) => l.date < currentDate && l.units && l.units.length > 0)
+        .sort((a, b) => b.date.localeCompare(a.date));
+      if (priorLogs.length > 0) {
+        sourceLog = priorLogs[0];
+      }
+    }
+
+    if (!sourceLog || !sourceLog.units || sourceLog.units.length === 0) {
+      showToast('No previous day units found to copy');
+      return;
+    }
+
+    // 3. Clone units (clean fresh IDs, clear photos, reset isCompleted)
+    const clonedUnits: UnitWork[] = sourceLog.units.map((u, idx) => ({
+      id: `unit-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}-${idx}`,
+      unitNumber: u.unitNumber,
+      paintColor: u.paintColor || '',
+      notes: u.notes || '',
+      photos: [], // clone unit details MINUS photos as requested
+      isCompleted: false,
+    }));
+
+    updateActiveLog({
+      ...activeLog,
+      units: [...clonedUnits, ...activeLog.units],
+    });
+
+    const label = sourceLog.date === yesterdayIso ? 'yesterday' : sourceLog.date;
+    showToast(`Copied ${clonedUnits.length} unit${clonedUnits.length === 1 ? '' : 's'} from ${label} (photos cleared)`);
+  };
+
   const handleUpdateUnit = (updatedUnit: UnitWork) => {
     const updatedUnits = activeLog.units.map((u) => (u.id === updatedUnit.id ? updatedUnit : u));
     updateActiveLog({
@@ -168,12 +212,12 @@ export default function App() {
   };
 
   const handleRestoreUnit1324 = () => {
-    const updated = restoreUserUnit1324(logs);
+    const updated = restoreTBRRabbitBizWeek(logs);
     setLogs(updated);
-    setCurrentDate('2026-10-26');
-    setActiveLog(getLogForDate('2026-10-26', updated));
+    setCurrentDate('2026-10-30');
+    setActiveLog(getLogForDate('2026-10-30', updated));
     setActiveTab('today');
-    showToast('Restored Unit 1324 work & photos!');
+    showToast('Updated TBRRABBITBIZ work week (Oct 26 - Oct 30)!');
   };
 
   const handleRestoreSnapshotLogs = (restoredLogs: DailyWorkLog[]) => {
@@ -388,14 +432,25 @@ export default function App() {
                   <span className="text-[13px] font-semibold uppercase tracking-wider text-[#8E8E93]">
                     Units Serviced ({activeLog.units.length})
                   </span>
-                  <button
-                    type="button"
-                    onClick={handleAddUnit}
-                    className="inline-flex items-center gap-1 py-1 px-3 bg-[#0A84FF] hover:bg-[#0071E3] text-white font-semibold rounded-full text-[13px] active:scale-95 transition-all shadow-sm"
-                  >
-                    <Plus className="w-4 h-4" />
-                    <span>Add Unit</span>
-                  </button>
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={handleCopyFromYesterday}
+                      className="inline-flex items-center gap-1 py-1 px-2.5 bg-[#2C2C2E] hover:bg-[#3A3A3C] text-[#0A84FF] border border-[#0A84FF]/30 font-semibold rounded-full text-[12px] active:scale-95 transition-all shadow-sm cursor-pointer"
+                      title="Copy unit numbers, paint color & scope from previous day without photos"
+                    >
+                      <Copy className="w-3.5 h-3.5" />
+                      <span>Copy Yesterday</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleAddUnit}
+                      className="inline-flex items-center gap-1 py-1 px-3 bg-[#0A84FF] hover:bg-[#0071E3] text-white font-semibold rounded-full text-[13px] active:scale-95 transition-all shadow-sm cursor-pointer"
+                    >
+                      <Plus className="w-4 h-4" />
+                      <span>Add Unit</span>
+                    </button>
+                  </div>
                 </div>
 
                 {activeLog.units.length > 0 ? (
@@ -419,14 +474,24 @@ export default function App() {
                     <p className="text-[13px] text-[#8E8E93] max-w-xs mx-auto">
                       Snap damage photos before you start, patch and roll paint, snap finished photos, clean floors, and log completion.
                     </p>
-                    <button
-                      type="button"
-                      onClick={handleAddUnit}
-                      className="mt-3 inline-flex items-center gap-1.5 text-[14px] font-semibold text-white bg-[#0A84FF] hover:bg-[#0071E3] px-4 py-2 rounded-full shadow transition-all active:scale-95"
-                    >
-                      <Plus className="w-4 h-4" />
-                      Add First Unit
-                    </button>
+                    <div className="pt-2 flex items-center justify-center gap-2">
+                      <button
+                        type="button"
+                        onClick={handleCopyFromYesterday}
+                        className="inline-flex items-center gap-1.5 text-[13px] font-medium text-[#0A84FF] bg-[#2C2C2E] hover:bg-[#3A3A3C] border border-[#0A84FF]/30 px-3.5 py-2 rounded-full shadow transition-all active:scale-95 cursor-pointer"
+                      >
+                        <Copy className="w-3.5 h-3.5" />
+                        <span>Copy from Yesterday</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleAddUnit}
+                        className="inline-flex items-center gap-1.5 text-[13px] font-semibold text-white bg-[#0A84FF] hover:bg-[#0071E3] px-4 py-2 rounded-full shadow transition-all active:scale-95 cursor-pointer"
+                      >
+                        <Plus className="w-4 h-4" />
+                        <span>Add Unit</span>
+                      </button>
+                    </div>
                   </div>
                 )}
               </div>

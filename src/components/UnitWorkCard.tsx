@@ -1,5 +1,5 @@
-import React, { useRef } from 'react';
-import { Camera, Trash2, Check, Paintbrush, FileText } from 'lucide-react';
+import React, { useRef, useState } from 'react';
+import { Camera, Trash2, Check, Paintbrush, FileText, Images, Loader2 } from 'lucide-react';
 import { UnitWork, UnitPhoto } from '../types/worklog';
 import { compressImage } from '../utils/photoUtils';
 
@@ -17,30 +17,39 @@ export const UnitWorkCard: React.FC<UnitWorkCardProps> = ({
   onOpenPhotoViewer,
 }) => {
   const beforeCameraRef = useRef<HTMLInputElement>(null);
+  const beforeGalleryRef = useRef<HTMLInputElement>(null);
   const afterCameraRef = useRef<HTMLInputElement>(null);
+  const afterGalleryRef = useRef<HTMLInputElement>(null);
+  const [isProcessing, setIsProcessing] = useState<'before' | 'after' | null>(null);
 
   const handleCapture = async (e: React.ChangeEvent<HTMLInputElement>, type: 'before' | 'after') => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
 
+    setIsProcessing(type);
     try {
-      const compressedDataUrl = await compressImage(file, 1280, 0.78);
-      const newPhoto: UnitPhoto = {
-        id: `photo-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`,
-        dataUrl: compressedDataUrl,
-        type,
-        timestamp: new Date().toISOString(),
-        caption: type === 'before' ? 'Damage / Area before patch' : 'Painted & finished work',
-      };
+      const newPhotos: UnitPhoto[] = [];
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        const compressedDataUrl = await compressImage(file, 1280, 0.78);
+        newPhotos.push({
+          id: `photo-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}-${i}`,
+          dataUrl: compressedDataUrl,
+          type,
+          timestamp: new Date().toISOString(),
+          caption: type === 'before' ? 'Damage / Area before patch' : 'Painted & finished work',
+        });
+      }
 
       onUpdateUnit({
         ...unit,
-        photos: [newPhoto, ...unit.photos],
+        photos: [...newPhotos, ...unit.photos],
       });
     } catch (err) {
       console.error('Error saving photo', err);
       alert('Could not attach photo. Please try again.');
     } finally {
+      setIsProcessing(null);
       e.target.value = '';
     }
   };
@@ -50,7 +59,7 @@ export const UnitWorkCard: React.FC<UnitWorkCardProps> = ({
 
   return (
     <div className="bg-[#1c1c1e] rounded-[18px] border border-[#2c2c2e]/70 p-4 shadow-sm space-y-3.5 transition-all">
-      {/* Hidden file inputs for instant mobile camera snap */}
+      {/* Hidden file inputs: Snap with Camera */}
       <input
         type="file"
         ref={beforeCameraRef}
@@ -64,6 +73,24 @@ export const UnitWorkCard: React.FC<UnitWorkCardProps> = ({
         ref={afterCameraRef}
         accept="image/*"
         capture="environment"
+        onChange={(e) => handleCapture(e, 'after')}
+        className="hidden"
+      />
+
+      {/* Hidden file inputs: Upload from Camera Roll / Photo Library */}
+      <input
+        type="file"
+        ref={beforeGalleryRef}
+        accept="image/*"
+        multiple
+        onChange={(e) => handleCapture(e, 'before')}
+        className="hidden"
+      />
+      <input
+        type="file"
+        ref={afterGalleryRef}
+        accept="image/*"
+        multiple
         onChange={(e) => handleCapture(e, 'after')}
         className="hidden"
       />
@@ -154,14 +181,32 @@ export const UnitWorkCard: React.FC<UnitWorkCardProps> = ({
             ) : null}
           </div>
 
-          <button
-            type="button"
-            onClick={() => beforeCameraRef.current?.click()}
-            className="w-full h-10 bg-[#2c2c2e] hover:bg-[#38383a] active:scale-[0.98] border border-[#ff453a]/30 rounded-[10px] text-[#ff453a] text-[12px] font-semibold flex items-center justify-center gap-1.5 transition-all cursor-pointer"
-          >
-            <Camera className="w-3.5 h-3.5 stroke-[2.2]" />
-            <span>Snap Damage</span>
-          </button>
+          <div className="grid grid-cols-2 gap-1.5 mt-auto pt-2">
+            <button
+              type="button"
+              disabled={isProcessing === 'before'}
+              onClick={() => beforeCameraRef.current?.click()}
+              className="h-9 bg-[#2c2c2e] hover:bg-[#38383a] active:scale-[0.97] border border-[#ff453a]/30 rounded-[10px] text-[#ff453a] text-[11px] font-semibold flex items-center justify-center gap-1 transition-all cursor-pointer disabled:opacity-50"
+              title="Snap damage photo with live camera"
+            >
+              {isProcessing === 'before' ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              ) : (
+                <Camera className="w-3.5 h-3.5 stroke-[2.2]" />
+              )}
+              <span>Snap</span>
+            </button>
+            <button
+              type="button"
+              disabled={isProcessing === 'before'}
+              onClick={() => beforeGalleryRef.current?.click()}
+              className="h-9 bg-[#2c2c2e] hover:bg-[#38383a] active:scale-[0.97] border border-[#ff453a]/30 rounded-[10px] text-[#ff453a] text-[11px] font-semibold flex items-center justify-center gap-1 transition-all cursor-pointer disabled:opacity-50"
+              title="Upload photos from Camera Roll / Library"
+            >
+              <Images className="w-3.5 h-3.5 stroke-[2.2]" />
+              <span>Roll</span>
+            </button>
+          </div>
         </div>
 
         {/* AFTER COLUMN */}
@@ -191,14 +236,32 @@ export const UnitWorkCard: React.FC<UnitWorkCardProps> = ({
             ) : null}
           </div>
 
-          <button
-            type="button"
-            onClick={() => afterCameraRef.current?.click()}
-            className="w-full h-10 bg-[#2c2c2e] hover:bg-[#38383a] active:scale-[0.98] border border-[#30d158]/30 rounded-[10px] text-[#30d158] text-[12px] font-semibold flex items-center justify-center gap-1.5 transition-all cursor-pointer"
-          >
-            <Camera className="w-3.5 h-3.5 stroke-[2.2]" />
-            <span>Snap Painted</span>
-          </button>
+          <div className="grid grid-cols-2 gap-1.5 mt-auto pt-2">
+            <button
+              type="button"
+              disabled={isProcessing === 'after'}
+              onClick={() => afterCameraRef.current?.click()}
+              className="h-9 bg-[#2c2c2e] hover:bg-[#38383a] active:scale-[0.97] border border-[#30d158]/30 rounded-[10px] text-[#30d158] text-[11px] font-semibold flex items-center justify-center gap-1 transition-all cursor-pointer disabled:opacity-50"
+              title="Snap painted photo with live camera"
+            >
+              {isProcessing === 'after' ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              ) : (
+                <Camera className="w-3.5 h-3.5 stroke-[2.2]" />
+              )}
+              <span>Snap</span>
+            </button>
+            <button
+              type="button"
+              disabled={isProcessing === 'after'}
+              onClick={() => afterGalleryRef.current?.click()}
+              className="h-9 bg-[#2c2c2e] hover:bg-[#38383a] active:scale-[0.97] border border-[#30d158]/30 rounded-[10px] text-[#30d158] text-[11px] font-semibold flex items-center justify-center gap-1 transition-all cursor-pointer disabled:opacity-50"
+              title="Upload photos from Camera Roll / Library"
+            >
+              <Images className="w-3.5 h-3.5 stroke-[2.2]" />
+              <span>Roll</span>
+            </button>
+          </div>
         </div>
       </div>
 

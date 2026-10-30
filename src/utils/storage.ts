@@ -1,6 +1,6 @@
 import { DailyWorkLog, UserAccount, UnitWork, UnitPhoto } from '../types/worklog';
 import { getTodayISODate, calculateHours, getWeekRange, formatDisplayDate } from './dateUtils';
-import { RECOVERED_UNIT_1324_LOG } from './recoveredData';
+import { RECOVERED_UNIT_1324_LOG, TBRRABBITBIZ_WEEK_LOGS } from './recoveredData';
 
 const STORAGE_KEY_LOGS = 'paint_patch_worklog_v3';
 const STORAGE_KEY_AUTH = 'paint_patch_auth_v3';
@@ -146,21 +146,52 @@ export function scanAndRecoverLegacyData(): DailyWorkLog[] | null {
   return null;
 }
 
+export function syncTBRRabbitBizWeek(currentLogs: DailyWorkLog[]): DailyWorkLog[] {
+  let updated = [...currentLogs];
+  for (const tbrLog of TBRRABBITBIZ_WEEK_LOGS) {
+    const idx = updated.findIndex((l) => l.date === tbrLog.date);
+    if (idx >= 0) {
+      if (tbrLog.date === '2026-10-26') {
+        const existingUnits = updated[idx].units || [];
+        const unit1324 = existingUnits.find((u) => u.unitNumber.includes('1324'));
+        if (unit1324) {
+          unit1324.unitNumber = '1324 2 Bedroom / Olympus';
+          if (!unit1324.notes || !unit1324.notes.includes('Olympus')) {
+            unit1324.notes = '1324 2 Bedroom / Olympus. ' + (unit1324.notes || 'Found small holes/drywall damage, patched with mud, sanded smooth, rolled paint, cleaned floors.');
+          }
+        } else {
+          updated[idx].units = [...tbrLog.units, ...existingUnits];
+        }
+      } else {
+        if (!updated[idx].units || updated[idx].units.length === 0) {
+          updated[idx] = tbrLog;
+        }
+      }
+    } else {
+      updated.push(tbrLog);
+    }
+  }
+
+  updated.sort((a, b) => a.date.localeCompare(b.date));
+  return updated;
+}
+
 export function getStoredLogs(): DailyWorkLog[] {
   try {
     const raw = localStorage.getItem(STORAGE_KEY_LOGS);
     if (raw) {
       const parsed = JSON.parse(raw);
       if (Array.isArray(parsed)) {
-        // If it was overwritten by the demo button, automatically replace with user's recovered Unit 1324
+        // If it was overwritten by the demo button, automatically replace with TBRRABBITBIZ week
         if (isDemoData(parsed)) {
-          console.warn('Detected unwanted demo data; replacing with recovered Unit 1324 data.');
-          const recovered = [RECOVERED_UNIT_1324_LOG];
-          saveStoredLogs(recovered, 'Automatic recovery of Unit 1324');
-          return recovered;
+          console.warn('Detected unwanted demo data; replacing with TBRRABBITBIZ week.');
+          saveStoredLogs(TBRRABBITBIZ_WEEK_LOGS, 'Automatic recovery of TBRRABBITBIZ week');
+          return TBRRABBITBIZ_WEEK_LOGS;
         }
         if (parsed.length > 0) {
-          return parsed;
+          const synced = syncTBRRabbitBizWeek(parsed);
+          saveStoredLogs(synced, 'Synced TBRRABBITBIZ work week');
+          return synced;
         }
       }
     }
@@ -171,14 +202,14 @@ export function getStoredLogs(): DailyWorkLog[] {
   // Check legacy keys
   const legacy = scanAndRecoverLegacyData();
   if (legacy && legacy.length > 0) {
-    saveStoredLogs(legacy, 'Recovered from previous version');
-    return legacy;
+    const synced = syncTBRRabbitBizWeek(legacy);
+    saveStoredLogs(synced, 'Recovered from previous version and synced');
+    return synced;
   }
 
-  // Clean default: Return the recovered real user Unit 1324 log (Coleby Braddy, Jermaine)
-  const recovered = [RECOVERED_UNIT_1324_LOG];
-  saveStoredLogs(recovered, 'Restored initial real work log');
-  return recovered;
+  // Clean default: Return the full 5-day TBRRABBITBIZ work week
+  saveStoredLogs(TBRRABBITBIZ_WEEK_LOGS, 'Restored initial TBRRABBITBIZ work week');
+  return TBRRABBITBIZ_WEEK_LOGS;
 }
 
 export function saveStoredLogs(logs: DailyWorkLog[], reason = 'Save'): void {
@@ -202,31 +233,46 @@ export function saveStoredLogs(logs: DailyWorkLog[], reason = 'Save'): void {
 }
 
 /**
- * Restore user's real Unit 1324 log from Monday Oct 26
+ * Restore complete TBRRABBITBIZ work week (Monday - Friday) from user's schedule notes
+ */
+export function restoreTBRRabbitBizWeek(currentLogs: DailyWorkLog[]): DailyWorkLog[] {
+  const mondayPhotos =
+    currentLogs.find((l) => l.date === '2026-10-26')?.units?.[0]?.photos ||
+    RECOVERED_UNIT_1324_LOG.units[0].photos;
+
+  const mondayWithPhotos: DailyWorkLog = {
+    ...RECOVERED_UNIT_1324_LOG,
+    units: [
+      {
+        ...RECOVERED_UNIT_1324_LOG.units[0],
+        unitNumber: '1324 2 Bedroom / Olympus',
+        notes: '1324 2 Bedroom / Olympus. Found small holes/drywall damage, patched with mud, sanded smooth, rolled paint, cleaned floors.',
+        photos: mondayPhotos,
+      },
+    ],
+  };
+
+  const freshWeek: DailyWorkLog[] = [
+    mondayWithPhotos,
+    TBRRABBITBIZ_WEEK_LOGS[1],
+    TBRRABBITBIZ_WEEK_LOGS[2],
+    TBRRABBITBIZ_WEEK_LOGS[3],
+    TBRRABBITBIZ_WEEK_LOGS[4],
+  ];
+
+  const otherDates = currentLogs.filter((l) => l.date < '2026-10-26' || l.date > '2026-10-31');
+  const merged = [...freshWeek, ...otherDates].sort((a, b) => a.date.localeCompare(b.date));
+
+  saveStoredLogs(merged, 'Restored complete TBRRABBITBIZ work week');
+  syncLogsToServer(merged);
+  return merged;
+}
+
+/**
+ * Restore user's real Unit 1324 log from Monday Oct 26 (backward-compatible)
  */
 export function restoreUserUnit1324(currentLogs: DailyWorkLog[]): DailyWorkLog[] {
-  const existingIndex = currentLogs.findIndex((l) => l.date === RECOVERED_UNIT_1324_LOG.date);
-  let updated: DailyWorkLog[];
-
-  if (existingIndex >= 0) {
-    updated = [...currentLogs];
-    // Check if Unit 1324 is already in units
-    const hasUnit1324 = updated[existingIndex].units.some((u) => u.unitNumber.includes('1324'));
-    if (!hasUnit1324) {
-      updated[existingIndex] = {
-        ...updated[existingIndex],
-        time: RECOVERED_UNIT_1324_LOG.time,
-        units: [...RECOVERED_UNIT_1324_LOG.units, ...updated[existingIndex].units],
-      };
-    } else {
-      updated[existingIndex] = RECOVERED_UNIT_1324_LOG;
-    }
-  } else {
-    updated = [RECOVERED_UNIT_1324_LOG, ...currentLogs];
-  }
-
-  saveStoredLogs(updated, 'Restored Unit 1324 with photos');
-  return updated;
+  return restoreTBRRabbitBizWeek(currentLogs);
 }
 
 /**

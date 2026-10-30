@@ -14,9 +14,9 @@ export const RECOVERED_UNIT_1324_LOG: DailyWorkLog = {
   "units": [
     {
       "id": "unit-1324",
-      "unitNumber": "Unit 1324",
+      "unitNumber": "1324 2 Bedroom / Olympus",
       "paintColor": "Mini Nail Hole Fixes",
-      "notes": "Found small holes/drywall damage, patched with mud, sanded smooth, rolled paint, cleaned floors.",
+      "notes": "1324 2 Bedroom / Olympus. Found small holes/drywall damage, patched with mud, sanded smooth, rolled paint, cleaned floors.",
       "isCompleted": true,
       "photos": [
         {
@@ -51,3 +51,111 @@ export const RECOVERED_UNIT_1324_LOG: DailyWorkLog = {
     }
   ]
 };
+
+export const TUESDAY_OCT_27_LOG: DailyWorkLog = {
+  id: "log-2026-10-27",
+  date: "2026-10-27",
+  time: {
+    startTime: "10:30",
+    endTime: "19:00",
+    lunchDeductionMinutes: 30,
+    totalHours: 8.0,
+    overtimeHours: 0
+  },
+  status: "Submitted",
+  units: [
+    {
+      id: "unit-20261027-legends-north",
+      unitNumber: "3 Bedroom / Legends North",
+      paintColor: "Standard Turnover",
+      notes: "3 Bedroom / Legends North (10:30 am - 7:00 pm). Repaired drywall, rolled walls, trim touched up, floors cleaned.",
+      isCompleted: true,
+      photos: []
+    }
+  ]
+};
+
+export const WEDNESDAY_OCT_28_LOG: DailyWorkLog = {
+  id: "log-2026-10-28",
+  date: "2026-10-28",
+  time: {
+    startTime: "09:00",
+    endTime: "17:00",
+    lunchDeductionMinutes: 60,
+    totalHours: 7.0,
+    overtimeHours: 0
+  },
+  status: "Submitted",
+  units: [
+    {
+      id: "unit-20261028-marsh-point",
+      unitNumber: "315 1 Bedroom / Marsh Point",
+      paintColor: "Standard Paint",
+      notes: "Start: 9:00 am - Finish: 3:00 pm. 1 Bedroom unit repairs and paint at Marsh Point.",
+      isCompleted: true,
+      photos: []
+    },
+    {
+      id: "unit-20261028-old-folks-home",
+      unitNumber: "Old Folks Home",
+      paintColor: "Touch-up & Trim",
+      notes: "Start: 4:00 pm - Finish: 5:00 pm. Wall patch and paint touch-up at Old Folks Home.",
+      isCompleted: true,
+      photos: []
+    }
+  ]
+};
+
+export const THURSDAY_OCT_29_LOG: DailyWorkLog = {
+  id: "log-2026-10-29",
+  date: "2026-10-29",
+  time: {
+    startTime: "09:30",
+    endTime: "15:30",
+    lunchDeductionMinutes: 0,
+    totalHours: 6.0,
+    overtimeHours: 0
+  },
+  status: "Submitted",
+  units: [
+    {
+      id: "unit-20261029-olympus",
+      unitNumber: "315 1 Bedroom / Olympus",
+      paintColor: "Standard Paint",
+      notes: "Start: 9:30 am - Finish: 3:30 pm. 1 Bedroom unit repairs and paint at Olympus.",
+      isCompleted: true,
+      photos: []
+    }
+  ]
+};
+
+export const FRIDAY_OCT_30_LOG: DailyWorkLog = {
+  id: "log-2026-10-30",
+  date: "2026-10-30",
+  time: {
+    startTime: "09:30",
+    endTime: "16:30",
+    lunchDeductionMinutes: 0,
+    totalHours: 7.0,
+    overtimeHours: 0
+  },
+  status: "Submitted",
+  units: [
+    {
+      id: "unit-20261030-marsh-point-315",
+      unitNumber: "Marsh Point 315",
+      paintColor: "Primer & Repairs",
+      notes: "Start: 9:30 am - Finish: 4:30 pm. Tons Of Repairs. Day 1 Primed all walls and doors and ceilings.",
+      isCompleted: true,
+      photos: []
+    }
+  ]
+};
+
+export const TBRRABBITBIZ_WEEK_LOGS: DailyWorkLog[] = [
+  RECOVERED_UNIT_1324_LOG,
+  TUESDAY_OCT_27_LOG,
+  WEDNESDAY_OCT_28_LOG,
+  THURSDAY_OCT_29_LOG,
+  FRIDAY_OCT_30_LOG
+];
