@@ -21,7 +21,7 @@ export function formatShortDate(dateStr: string): string {
   });
 }
 
-export function formatTime12h(timeStr?: string | null): string {
+export function formatTime12h(timeStr?: string | null, isClockOut: boolean = false): string {
   if (!timeStr || !timeStr.trim()) return '--:--';
   const trimmed = timeStr.trim();
 
@@ -37,7 +37,11 @@ export function formatTime12h(timeStr?: string | null): string {
   const m = parseInt(parts[1], 10);
   if (isNaN(h) || isNaN(m)) return trimmed;
 
-  const period = h >= 12 ? 'PM' : 'AM';
+  let period = h >= 12 ? 'PM' : 'AM';
+  // If this is clock out time and entered as 1-7 (e.g. 5:00 pm finish), format as PM
+  if (isClockOut && h >= 1 && h <= 7) {
+    period = 'PM';
+  }
   const hour12 = h % 12 || 12;
   const minStr = String(m).padStart(2, '0');
   return `${hour12}:${minStr} ${period}`;

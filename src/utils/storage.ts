@@ -60,6 +60,39 @@ export function clearStoredAuth(): void {
   localStorage.removeItem(STORAGE_KEY_AUTH);
 }
 
+export async function deleteAccountAndResetData(token: string | null): Promise<void> {
+  if (token) {
+    try {
+      await fetch('/api/auth/account', {
+        method: 'DELETE',
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+    } catch (err) {
+      console.warn('Server delete account error:', err);
+    }
+  }
+
+  // Clear all local storage keys
+  try {
+    localStorage.removeItem(STORAGE_KEY_AUTH);
+    localStorage.removeItem(STORAGE_KEY_LOGS);
+    localStorage.removeItem(STORAGE_KEY_BACKUPS);
+    localStorage.removeItem('has_seen_fieldlog_tutorial');
+  } catch (e) {
+    console.warn('Error clearing localStorage during account deletion', e);
+  }
+
+  // Clear IndexedDB
+  try {
+    await idbSet(STORAGE_KEY_LOGS, []);
+    await idbSet('snapshots', []);
+  } catch (e) {
+    console.warn('Error clearing IndexedDB during account deletion', e);
+  }
+}
+
 /**
  * Check if logs contain the unwanted dummy demo units (Unit 304, Unit 306, etc.)
  */
@@ -458,7 +491,7 @@ export function generateBossEmailContent(
         );
       });
 
-      return `${day}: ${formatTime12h(log.time.startTime)} - ${formatTime12h(log.time.endTime)} (${log.time.totalHours.toFixed(1)} hrs) • ${u_count(log.units.length)}`;
+      return `${day}: ${formatTime12h(log.time.startTime)} - ${formatTime12h(log.time.endTime, true)} (${log.time.totalHours.toFixed(1)} hrs) • ${u_count(log.units.length)}`;
     }
     return `${day}: Off`;
   });

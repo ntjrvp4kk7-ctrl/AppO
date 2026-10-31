@@ -1,5 +1,5 @@
-import React from 'react';
-import { X, Trash2, Download, Share2 } from 'lucide-react';
+import React, { useState } from 'react';
+import { X, Trash2, Download, Share2, AlertTriangle } from 'lucide-react';
 import { UnitPhoto } from '../types/worklog';
 
 interface PhotoViewerModalProps {
@@ -15,6 +15,8 @@ export const PhotoViewerModal: React.FC<PhotoViewerModalProps> = ({
   onClose,
   onDelete,
 }) => {
+  const [showConfirmDelete, setShowConfirmDelete] = useState(false);
+
   if (!photo) return null;
 
   const isBefore = photo.type === 'before';
@@ -58,26 +60,52 @@ export const PhotoViewerModal: React.FC<PhotoViewerModalProps> = ({
             </button>
             {onDelete && (
               <button
-                onClick={() => {
-                  if (confirm('Delete this photo?')) {
-                    onDelete(photo.id);
-                    onClose();
-                  }
-                }}
+                onClick={() => setShowConfirmDelete(true)}
                 title="Delete Photo"
-                className="p-2 text-[#FF453A] hover:bg-[#FF453A]/10 active:scale-90 rounded-full transition-all"
+                className="p-2 text-[#FF453A] hover:bg-[#FF453A]/10 active:scale-90 rounded-full transition-all cursor-pointer"
               >
                 <Trash2 className="w-5 h-5" />
               </button>
             )}
             <button
               onClick={onClose}
-              className="p-2 text-[#8E8E93] hover:text-white hover:bg-[#1C1C1E] active:scale-90 rounded-full transition-all"
+              className="p-2 text-[#8E8E93] hover:text-white hover:bg-[#1C1C1E] active:scale-90 rounded-full transition-all cursor-pointer"
             >
               <X className="w-5 h-5" />
             </button>
           </div>
         </div>
+
+        {/* In-Modal Delete Confirmation Banner */}
+        {showConfirmDelete && (
+          <div className="bg-[#FF453A]/15 border-b border-[#FF453A]/30 px-4 py-2.5 flex items-center justify-between text-xs text-white animate-in slide-in-from-top duration-150">
+            <div className="flex items-center gap-2">
+              <AlertTriangle className="w-4 h-4 text-[#FF453A] shrink-0" />
+              <span className="font-medium">Permanently delete this photo?</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setShowConfirmDelete(false)}
+                className="px-2.5 py-1 bg-[#2C2C2E] hover:bg-[#38383A] text-white rounded-[7px] text-[11px] font-medium"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (onDelete) {
+                    onDelete(photo.id);
+                  }
+                  onClose();
+                }}
+                className="px-2.5 py-1 bg-[#FF453A] hover:bg-[#E0382E] text-white rounded-[7px] text-[11px] font-bold"
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Photo View Container */}
         <div className="flex-1 flex items-center justify-center p-4 overflow-hidden select-none">

@@ -56,6 +56,17 @@ export const UnitWorkCard: React.FC<UnitWorkCardProps> = ({
   const beforePhotos = unit.photos.filter((p) => p.type === 'before');
   const afterPhotos = unit.photos.filter((p) => p.type === 'after');
 
+  const handleDeletePhoto = (photoId: string, e?: React.MouseEvent) => {
+    if (e) {
+      e.stopPropagation();
+    }
+    const updated = unit.photos.filter((p) => p.id !== photoId);
+    onUpdateUnit({
+      ...unit,
+      photos: updated,
+    });
+  };
+
   return (
     <div className="bg-[#1c1c1e] rounded-[18px] border border-[#2c2c2e]/70 p-4 shadow-sm space-y-3.5 transition-all">
       {/* Hidden file inputs: Snap with Camera */}
@@ -122,16 +133,24 @@ export const UnitWorkCard: React.FC<UnitWorkCardProps> = ({
               className="w-full bg-transparent text-[13px] text-white placeholder-[#8e8e93] focus:outline-none"
             />
           </div>
+
+          {/* Prominent Unit Photo Count Badge */}
+          <div className="flex items-center gap-2 pt-0.5">
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-[#2c2c2e] border border-[#3a3a3c] text-white shadow-sm">
+              <Camera className="w-3.5 h-3.5 text-[#0a84ff]" />
+              <span>{unit.photos.length} Total {unit.photos.length === 1 ? 'Photo' : 'Photos'}</span>
+              <span className="text-[#8e8e93]">·</span>
+              <span className="text-[#ff453a]">{beforePhotos.length} Before</span>
+              <span className="text-[#8e8e93]">/</span>
+              <span className="text-[#30d158]">{afterPhotos.length} After</span>
+            </span>
+          </div>
         </div>
 
-        {/* Delete Unit Action (iOS Red Circle Icon) */}
+        {/* Delete Unit Action */}
         <button
           type="button"
-          onClick={() => {
-            if (confirm(`Remove ${unit.unitNumber || 'this unit'}?`)) {
-              onDeleteUnit(unit.id);
-            }
-          }}
+          onClick={() => onDeleteUnit(unit.id)}
           className="w-8 h-8 rounded-full bg-[#2c2c2e] text-[#ff453a] hover:bg-[#3a3a3c] active:opacity-60 transition-all flex items-center justify-center shrink-0 mt-0.5 cursor-pointer"
           title="Delete unit"
         >
@@ -160,20 +179,35 @@ export const UnitWorkCard: React.FC<UnitWorkCardProps> = ({
               <span className="text-[11px] font-bold uppercase tracking-wider text-[#ff453a]">
                 [Before Damage]
               </span>
-              <span className="text-[10px] font-semibold text-[#8e8e93] font-mono-numbers">
-                {beforePhotos.length}
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#ff453a]/15 text-[#ff453a] border border-[#ff453a]/30 font-mono-numbers">
+                {beforePhotos.length} {beforePhotos.length === 1 ? 'Pic' : 'Pics'}
               </span>
             </div>
 
             {beforePhotos.length > 0 ? (
-              <div className="grid grid-cols-2 gap-1.5 mb-2">
-                {beforePhotos.map((photo) => (
+              <div className="grid grid-cols-2 gap-2 mb-2">
+                {beforePhotos.map((photo, pIdx) => (
                   <div
                     key={photo.id}
                     onClick={() => onOpenPhotoViewer(photo, unit.unitNumber)}
-                    className="aspect-square bg-black rounded-[8px] overflow-hidden border border-[#38383a] cursor-pointer relative active:scale-95 transition-transform"
+                    className="aspect-square bg-black rounded-[10px] overflow-hidden border border-[#38383a] cursor-pointer relative group active:scale-95 transition-transform"
                   >
                     <img src={photo.dataUrl} alt="Before" className="w-full h-full object-cover" />
+                    
+                    {/* Photo index count */}
+                    <span className="absolute bottom-1 left-1 px-1.5 py-0.5 bg-black/75 backdrop-blur-sm rounded text-[9px] font-bold text-white font-mono">
+                      #{pIdx + 1}
+                    </span>
+
+                    {/* Delete Photo Button */}
+                    <button
+                      type="button"
+                      onClick={(e) => handleDeletePhoto(photo.id, e)}
+                      title="Delete photo"
+                      className="absolute top-1 right-1 w-6 h-6 rounded-full bg-black/80 hover:bg-[#ff453a] text-white flex items-center justify-center transition-colors shadow-md border border-white/20 active:scale-90"
+                    >
+                      <Trash2 className="w-3 h-3 text-[#ff453a] hover:text-white" />
+                    </button>
                   </div>
                 ))}
               </div>
@@ -225,20 +259,35 @@ export const UnitWorkCard: React.FC<UnitWorkCardProps> = ({
               <span className="text-[11px] font-bold uppercase tracking-wider text-[#30d158]">
                 [After Painted]
               </span>
-              <span className="text-[10px] font-semibold text-[#8e8e93] font-mono-numbers">
-                {afterPhotos.length}
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#30d158]/15 text-[#30d158] border border-[#30d158]/30 font-mono-numbers">
+                {afterPhotos.length} {afterPhotos.length === 1 ? 'Pic' : 'Pics'}
               </span>
             </div>
 
             {afterPhotos.length > 0 ? (
-              <div className="grid grid-cols-2 gap-1.5 mb-2">
-                {afterPhotos.map((photo) => (
+              <div className="grid grid-cols-2 gap-2 mb-2">
+                {afterPhotos.map((photo, pIdx) => (
                   <div
                     key={photo.id}
                     onClick={() => onOpenPhotoViewer(photo, unit.unitNumber)}
-                    className="aspect-square bg-black rounded-[8px] overflow-hidden border border-[#38383a] cursor-pointer relative active:scale-95 transition-transform"
+                    className="aspect-square bg-black rounded-[10px] overflow-hidden border border-[#38383a] cursor-pointer relative group active:scale-95 transition-transform"
                   >
                     <img src={photo.dataUrl} alt="After" className="w-full h-full object-cover" />
+                    
+                    {/* Photo index count */}
+                    <span className="absolute bottom-1 left-1 px-1.5 py-0.5 bg-black/75 backdrop-blur-sm rounded text-[9px] font-bold text-white font-mono">
+                      #{pIdx + 1}
+                    </span>
+
+                    {/* Delete Photo Button */}
+                    <button
+                      type="button"
+                      onClick={(e) => handleDeletePhoto(photo.id, e)}
+                      title="Delete photo"
+                      className="absolute top-1 right-1 w-6 h-6 rounded-full bg-black/80 hover:bg-[#ff453a] text-white flex items-center justify-center transition-colors shadow-md border border-white/20 active:scale-90"
+                    >
+                      <Trash2 className="w-3 h-3 text-[#ff453a] hover:text-white" />
+                    </button>
                   </div>
                 ))}
               </div>

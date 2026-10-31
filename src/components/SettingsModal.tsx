@@ -10,6 +10,10 @@ import {
   Download,
   Upload,
   AlertCircle,
+  AlertTriangle,
+  BookOpen,
+  UserX,
+  HelpCircle,
 } from 'lucide-react';
 import { UserAccount, DailyWorkLog } from '../types/worklog';
 import {
@@ -30,6 +34,8 @@ interface SettingsModalProps {
   onRestoreUnit1324: () => void;
   onClearAllData: () => void;
   onRestoreSnapshotLogs: (logs: DailyWorkLog[]) => void;
+  onOpenTutorial?: () => void;
+  onDeleteAccount?: () => void;
 }
 
 export const SettingsModal: React.FC<SettingsModalProps> = ({
@@ -43,6 +49,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   onRestoreUnit1324,
   onClearAllData,
   onRestoreSnapshotLogs,
+  onOpenTutorial,
+  onDeleteAccount,
 }) => {
   if (!isOpen) return null;
 
@@ -50,6 +58,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   const [savedSuccess, setSavedSuccess] = useState(false);
   const [showSnapshots, setShowSnapshots] = useState(false);
   const [snapshots, setSnapshots] = useState<WorkLogSnapshot[]>(() => getSavedSnapshots());
+  const [showClearConfirm, setShowClearConfirm] = useState(false);
+  const [showDeleteAccountConfirm, setShowDeleteAccountConfirm] = useState(false);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -344,37 +354,156 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             </div>
           </div>
 
-          {/* Danger Zone: Clear Data */}
+          {/* Tutorial & Help Section */}
           <div>
-            <div className="text-[13px] font-normal uppercase tracking-wider text-[#FF453A] px-3 mb-1.5">
-              Reset Options
+            <div className="text-[13px] font-normal uppercase tracking-wider text-[#8E8E93] px-3 mb-1.5 flex items-center gap-1.5">
+              <BookOpen className="w-4 h-4 text-[#0A84FF]" /> Help & Onboarding
             </div>
-            <div className="bg-[#1C1C1E] rounded-[16px] border border-[#2C2C2E] overflow-hidden">
+            <div className="bg-[#1C1C1E] rounded-[16px] border border-[#2C2C2E] overflow-hidden divide-y divide-[#2C2C2E]">
               <button
                 type="button"
                 onClick={() => {
-                  if (confirm('Clear all work logs to start with a blank week? An automatic backup will be saved first.')) {
-                    onClearAllData();
-                    onClose();
-                  }
+                  onClose();
+                  if (onOpenTutorial) onOpenTutorial();
                 }}
-                className="w-full px-4 py-3.5 flex items-center justify-between text-left hover:bg-[#FF453A]/10 active:bg-[#FF453A]/20 transition-colors"
+                className="w-full px-4 py-3.5 flex items-center justify-between text-left hover:bg-[#2C2C2E]/60 active:bg-[#2C2C2E] transition-colors cursor-pointer"
               >
                 <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-[10px] bg-[#FF453A]/20 flex items-center justify-center text-[#FF453A]">
-                    <Trash2 className="w-4 h-4" />
+                  <div className="w-8 h-8 rounded-[10px] bg-[#0A84FF]/20 flex items-center justify-center text-[#0A84FF]">
+                    <HelpCircle className="w-4 h-4" />
                   </div>
                   <div>
-                    <span className="text-[15px] font-medium text-[#FF453A] block">
-                      Clear All Work Logs (Blank Week)
+                    <span className="text-[15px] font-semibold text-white block">
+                      Interactive App Tutorial
                     </span>
                     <span className="text-[12px] text-[#8E8E93]">
-                      Empties week logs (safely backed up in snapshots)
+                      Learn shift tracking, unit logging, photo counts & boss reports
                     </span>
                   </div>
                 </div>
                 <ChevronRight className="w-4 h-4 text-[#636366]" />
               </button>
+            </div>
+          </div>
+
+          {/* Danger Zone: Reset & Delete Account */}
+          <div>
+            <div className="text-[13px] font-normal uppercase tracking-wider text-[#FF453A] px-3 mb-1.5 flex items-center gap-1.5">
+              <AlertTriangle className="w-4 h-4 text-[#FF453A]" /> Danger Zone & Reset
+            </div>
+            <div className="bg-[#1C1C1E] rounded-[16px] border border-[#2C2C2E] overflow-hidden divide-y divide-[#2C2C2E]">
+              {/* Option 1: Clear Week Logs */}
+              {!showClearConfirm ? (
+                <button
+                  type="button"
+                  onClick={() => setShowClearConfirm(true)}
+                  className="w-full px-4 py-3.5 flex items-center justify-between text-left hover:bg-[#FF453A]/10 active:bg-[#FF453A]/20 transition-colors cursor-pointer"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-[10px] bg-[#FF453A]/20 flex items-center justify-center text-[#FF453A]">
+                      <Trash2 className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <span className="text-[15px] font-medium text-[#FF453A] block">
+                        Clear All Work Logs (Blank Week)
+                      </span>
+                      <span className="text-[12px] text-[#8E8E93]">
+                        Empties week logs (safely backed up in snapshots)
+                      </span>
+                    </div>
+                  </div>
+                  <ChevronRight className="w-4 h-4 text-[#636366]" />
+                </button>
+              ) : (
+                <div className="p-3.5 bg-[#FF453A]/10 border-b border-[#FF453A]/20 space-y-2.5">
+                  <div className="flex items-start gap-2">
+                    <AlertTriangle className="w-4 h-4 text-[#FF453A] shrink-0 mt-0.5" />
+                    <p className="text-[13px] text-white">
+                      Clear all work logs to start with a blank week? An automatic backup snapshot will be saved first.
+                    </p>
+                  </div>
+                  <div className="flex items-center justify-end gap-2 pt-1">
+                    <button
+                      type="button"
+                      onClick={() => setShowClearConfirm(false)}
+                      className="px-3 py-1.5 bg-[#2C2C2E] hover:bg-[#38383A] text-white rounded-[8px] text-[12px] font-medium"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowClearConfirm(false);
+                        onClearAllData();
+                        onClose();
+                      }}
+                      className="px-3 py-1.5 bg-[#FF453A] hover:bg-[#E0382E] text-white rounded-[8px] text-[12px] font-bold"
+                    >
+                      Yes, Clear Logs
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Option 2: Delete Account */}
+              {!showDeleteAccountConfirm ? (
+                <button
+                  type="button"
+                  onClick={() => setShowDeleteAccountConfirm(true)}
+                  className="w-full px-4 py-3.5 flex items-center justify-between text-left hover:bg-[#FF453A]/10 active:bg-[#FF453A]/20 transition-colors cursor-pointer"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-[10px] bg-[#FF453A]/20 flex items-center justify-center text-[#FF453A]">
+                      <UserX className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <span className="text-[15px] font-medium text-[#FF453A] block">
+                        Delete Account & Reset Data
+                      </span>
+                      <span className="text-[12px] text-[#8E8E93]">
+                        Permanently deletes account, logs, and photos
+                      </span>
+                    </div>
+                  </div>
+                  <ChevronRight className="w-4 h-4 text-[#636366]" />
+                </button>
+              ) : (
+                <div className="p-3.5 bg-[#FF453A]/15 border-b border-[#FF453A]/30 space-y-2.5">
+                  <div className="flex items-start gap-2">
+                    <AlertTriangle className="w-4 h-4 text-[#FF453A] shrink-0 mt-0.5" />
+                    <div>
+                      <p className="text-[13px] font-bold text-[#FF453A]">
+                        Delete Account Permanently?
+                      </p>
+                      <p className="text-[12px] text-zinc-300 mt-0.5">
+                        This will delete your user profile on the server, remove all active sessions, wipe local logs, and erase all photos. This cannot be undone.
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-end gap-2 pt-1">
+                    <button
+                      type="button"
+                      onClick={() => setShowDeleteAccountConfirm(false)}
+                      className="px-3 py-1.5 bg-[#2C2C2E] hover:bg-[#38383A] text-white rounded-[8px] text-[12px] font-medium"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowDeleteAccountConfirm(false);
+                        if (onDeleteAccount) {
+                          onDeleteAccount();
+                        }
+                        onClose();
+                      }}
+                      className="px-3.5 py-1.5 bg-[#FF453A] hover:bg-[#E0382E] text-white rounded-[8px] text-[12px] font-bold shadow-sm"
+                    >
+                      Permanently Delete Account
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </form>

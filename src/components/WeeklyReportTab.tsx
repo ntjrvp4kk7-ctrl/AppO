@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   ChevronLeft,
   ChevronRight,
@@ -40,6 +40,7 @@ interface WeeklyReportTabProps {
   onOpenPhotoViewer?: (photo: UnitPhoto, unitLabel: string) => void;
   onSaveLogs?: (logs: DailyWorkLog[]) => void;
   onOpenAuth?: () => void;
+  onUpdateProfile?: (updated: UserAccount) => void;
 }
 
 export const WeeklyReportTab: React.FC<WeeklyReportTabProps> = ({
@@ -52,6 +53,7 @@ export const WeeklyReportTab: React.FC<WeeklyReportTabProps> = ({
   onSelectDate,
   onOpenPhotoViewer,
   onSaveLogs,
+  onUpdateProfile,
 }) => {
   const [internalWeekStart, setInternalWeekStart] = useState<string>(() => {
     return selectedWeekStart || getWeekRange(currentDate || new Date()).start;
@@ -68,10 +70,32 @@ export const WeeklyReportTab: React.FC<WeeklyReportTabProps> = ({
   const [copiedText, setCopiedText] = useState(false);
   const [showSignoffModal, setShowSignoffModal] = useState(false);
   const [showPreviewModal, setShowPreviewModal] = useState(false);
+  const [showEditBossModal, setShowEditBossModal] = useState(false);
+  const [bossNameInput, setBossNameInput] = useState(profile.bossName || 'Jermaine');
+  const [bossEmailInput, setBossEmailInput] = useState(profile.bossEmail || 'tbrrabbitbiz@gmail.com');
   const [signerName, setSignerName] = useState(profile.bossName);
   const [isDownloadingPdf, setIsDownloadingPdf] = useState(false);
   const [pdfDownloadedStatus, setPdfDownloadedStatus] = useState<string | null>(null);
   const [htmlDownloadedStatus, setHtmlDownloadedStatus] = useState<string | null>(null);
+
+  useEffect(() => {
+    setBossNameInput(profile.bossName || '');
+    setBossEmailInput(profile.bossEmail || '');
+    setSignerName(profile.bossName || '');
+  }, [profile.bossName, profile.bossEmail]);
+
+  const handleSaveBossInfo = (e: React.FormEvent) => {
+    e.preventDefault();
+    const updatedUser: UserAccount = {
+      ...profile,
+      bossName: bossNameInput.trim() || 'Supervisor',
+      bossEmail: bossEmailInput.trim(),
+    };
+    if (onUpdateProfile) {
+      onUpdateProfile(updatedUser);
+    }
+    setShowEditBossModal(false);
+  };
 
   const weekRange = getWeekRange(weekStart);
   const dates = weekRange.dates;
@@ -277,6 +301,52 @@ export const WeeklyReportTab: React.FC<WeeklyReportTabProps> = ({
         </div>
       </div>
 
+      {/* iOS Inset Group: Supervisor & Boss Details with Edit Option */}
+      <div className="space-y-1.5">
+        <div className="px-4 flex items-center justify-between">
+          <span className="text-[12px] font-semibold uppercase tracking-wider text-[#8e8e93]">
+            Supervisor & Email
+          </span>
+          <button
+            type="button"
+            onClick={() => setShowEditBossModal(true)}
+            className="text-[13px] font-semibold text-[#0a84ff] active:opacity-60 flex items-center gap-1 cursor-pointer"
+          >
+            <UserCheck className="w-3.5 h-3.5" />
+            Edit Boss
+          </button>
+        </div>
+
+        <div className="bg-[#1c1c1e] rounded-[16px] border border-[#2c2c2e]/70 p-3.5 flex items-center justify-between shadow-sm">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-full bg-[#0a84ff]/20 text-[#0a84ff] flex items-center justify-center font-bold">
+              <UserCheck className="w-4 h-4 stroke-[2.2]" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-[15px] font-bold text-white block">
+                  {profile.bossName || 'Jermaine'}
+                </span>
+                <span className="text-[10px] font-semibold text-[#8e8e93] bg-[#2c2c2e] px-1.5 py-0.5 rounded">
+                  Boss
+                </span>
+              </div>
+              <span className="text-[12px] text-[#8e8e93] font-mono block mt-0.5">
+                {profile.bossEmail || 'tbrrabbitbiz@gmail.com'}
+              </span>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setShowEditBossModal(true)}
+            className="px-3 py-1.5 bg-[#2c2c2e] hover:bg-[#38383a] text-[#0a84ff] text-[13px] font-semibold rounded-[9px] active:scale-95 transition-all cursor-pointer"
+          >
+            Edit
+          </button>
+        </div>
+      </div>
+
       {/* iOS Inset Group: Export Actions Specifically Designed for Boss */}
       <div className="space-y-1.5">
         <div className="px-4 flex items-center justify-between">
@@ -472,7 +542,7 @@ export const WeeklyReportTab: React.FC<WeeklyReportTabProps> = ({
                       </div>
                       <span className="text-[11px] text-[#8e8e93]">
                         {hasActivity
-                          ? `${formatTime12h(log?.time.startTime)} – ${formatTime12h(log?.time.endTime)} • ${units.length} unit${
+                          ? `${formatTime12h(log?.time.startTime)} – ${formatTime12h(log?.time.endTime, true)} • ${units.length} unit${
                               units.length === 1 ? '' : 's'
                             }`
                           : 'Off Duty'}
@@ -501,7 +571,7 @@ export const WeeklyReportTab: React.FC<WeeklyReportTabProps> = ({
                         <div className="flex items-center gap-2 text-[#8e8e93]">
                           <Clock className="w-3.5 h-3.5" />
                           <span>
-                            {formatTime12h(log.time.startTime)} to {formatTime12h(log.time.endTime)} ({log.time.lunchDeductionMinutes}m lunch)
+                            {formatTime12h(log.time.startTime)} to {formatTime12h(log.time.endTime, true)} ({log.time.lunchDeductionMinutes}m lunch)
                           </span>
                         </div>
                         <span className="font-bold text-white font-mono-numbers">
@@ -664,7 +734,82 @@ export const WeeklyReportTab: React.FC<WeeklyReportTabProps> = ({
           }
           onClose={() => setShowPreviewModal(false)}
           onPrint={() => window.print()}
+          onUpdateProfile={onUpdateProfile}
         />
+      )}
+      {/* Edit Supervisor & Email Modal */}
+      {showEditBossModal && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/75 backdrop-blur-md animate-in fade-in duration-200">
+          <div className="w-full sm:max-w-md bg-[#1C1C1E] border-t sm:border border-[#2C2C2E] rounded-t-[28px] sm:rounded-[24px] overflow-hidden shadow-2xl flex flex-col max-h-[90vh] animate-in slide-in-from-bottom duration-250">
+            {/* Grab handle */}
+            <div className="pt-2.5 pb-1 flex justify-center sm:hidden">
+              <div className="w-9 h-1 rounded-full bg-[#38383A]" />
+            </div>
+
+            {/* Nav Header */}
+            <div className="flex items-center justify-between px-4 py-3 border-b border-[#2C2C2E]">
+              <button
+                type="button"
+                onClick={() => setShowEditBossModal(false)}
+                className="text-[17px] text-[#0A84FF] active:opacity-60"
+              >
+                Cancel
+              </button>
+              <span className="text-[17px] font-semibold text-white">Edit Supervisor</span>
+              <button
+                type="button"
+                onClick={handleSaveBossInfo}
+                className="text-[17px] font-bold text-[#0A84FF] active:opacity-60"
+              >
+                Save
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveBossInfo} className="p-4 space-y-4">
+              <div className="bg-[#2C2C2E]/60 rounded-[14px] border border-[#3A3A3C] divide-y divide-[#3A3A3C] overflow-hidden">
+                <div className="px-4 py-3 flex items-center justify-between gap-3">
+                  <label className="text-[15px] font-medium text-[#8E8E93] w-28 shrink-0">
+                    Boss Name
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={bossNameInput}
+                    onChange={(e) => setBossNameInput(e.target.value)}
+                    placeholder="e.g. Jermaine"
+                    className="w-full bg-transparent text-right text-[15px] text-white focus:outline-none"
+                    autoFocus
+                  />
+                </div>
+
+                <div className="px-4 py-3 flex items-center justify-between gap-3">
+                  <label className="text-[15px] font-medium text-[#8E8E93] w-28 shrink-0">
+                    Boss Email
+                  </label>
+                  <input
+                    type="email"
+                    required
+                    value={bossEmailInput}
+                    onChange={(e) => setBossEmailInput(e.target.value)}
+                    placeholder="tbrrabbitbiz@gmail.com"
+                    className="w-full bg-transparent text-right text-[15px] text-white focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              <p className="text-[12px] text-[#8E8E93] px-2 leading-relaxed">
+                This supervisor name and email will be used on all weekly reports, PDF timesheets, HTML exports, and 1-tap emails.
+              </p>
+
+              <button
+                type="submit"
+                className="w-full py-3 bg-[#0A84FF] hover:bg-[#0071E3] active:scale-[0.98] text-white text-[16px] font-semibold rounded-[12px] transition-all shadow-sm cursor-pointer"
+              >
+                Update Supervisor & Email
+              </button>
+            </form>
+          </div>
+        </div>
       )}
     </div>
   );

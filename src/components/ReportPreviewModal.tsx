@@ -33,6 +33,7 @@ interface ReportPreviewModalProps {
   };
   onClose: () => void;
   onPrint?: () => void;
+  onUpdateProfile?: (updated: UserAccount) => void;
 }
 
 interface UnitWithDate {
@@ -49,10 +50,14 @@ export const ReportPreviewModal: React.FC<ReportPreviewModalProps> = ({
   supervisorSignature,
   onClose,
   onPrint,
+  onUpdateProfile,
 }) => {
   const [isExporting, setIsExporting] = useState(false);
   const [exportStatus, setExportStatus] = useState<string | null>(null);
   const [copiedText, setCopiedText] = useState(false);
+  const [isEditingSupervisor, setIsEditingSupervisor] = useState(false);
+  const [bossNameInput, setBossNameInput] = useState(profile.bossName || '');
+  const [bossEmailInput, setBossEmailInput] = useState(profile.bossEmail || '');
 
   if (!isOpen) return null;
 
@@ -284,15 +289,87 @@ export const ReportPreviewModal: React.FC<ReportPreviewModalProps> = ({
               <h1 className="text-2xl sm:text-3xl font-black uppercase tracking-tight text-slate-950 mt-1.5">
                 Weekly Work & Unit Report
               </h1>
-              <div className="text-xs text-slate-600 mt-1 space-y-0.5">
+              <div className="text-xs text-slate-600 mt-1 space-y-1">
                 <p>
                   Technician: <strong className="text-slate-900 text-sm">{profile.workerName}</strong>
                   {profile.email && <span className="text-slate-500"> ({profile.email})</span>}
                 </p>
-                <p>
-                  Supervisor: <strong className="text-slate-900">{profile.bossName}</strong>
-                  {profile.bossEmail && <span className="text-slate-500"> ({profile.bossEmail})</span>}
-                </p>
+
+                {isEditingSupervisor ? (
+                  <div className="p-2.5 bg-blue-50/80 border border-blue-200 rounded-lg space-y-2 mt-1">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      <div>
+                        <label className="text-[10px] font-bold text-blue-900 uppercase tracking-wide block mb-0.5">
+                          Supervisor Name
+                        </label>
+                        <input
+                          type="text"
+                          value={bossNameInput}
+                          onChange={(e) => setBossNameInput(e.target.value)}
+                          placeholder="e.g. Jermaine"
+                          className="w-full px-2 py-1 text-xs bg-white border border-blue-300 rounded text-slate-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[10px] font-bold text-blue-900 uppercase tracking-wide block mb-0.5">
+                          Boss Email
+                        </label>
+                        <input
+                          type="email"
+                          value={bossEmailInput}
+                          onChange={(e) => setBossEmailInput(e.target.value)}
+                          placeholder="tbrrabbitbiz@gmail.com"
+                          className="w-full px-2 py-1 text-xs bg-white border border-blue-300 rounded text-slate-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                        />
+                      </div>
+                    </div>
+                    <div className="flex justify-end gap-2 pt-1">
+                      <button
+                        type="button"
+                        onClick={() => setIsEditingSupervisor(false)}
+                        className="px-2.5 py-1 text-xs text-slate-600 hover:text-slate-800 font-medium"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (onUpdateProfile) {
+                            onUpdateProfile({
+                              ...profile,
+                              bossName: bossNameInput.trim() || 'Supervisor',
+                              bossEmail: bossEmailInput.trim(),
+                            });
+                          }
+                          setIsEditingSupervisor(false);
+                        }}
+                        className="px-3 py-1 text-xs bg-blue-600 hover:bg-blue-700 text-white font-bold rounded shadow-sm"
+                      >
+                        Save Boss & Email
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <p className="flex items-center gap-2">
+                    <span>
+                      Supervisor: <strong className="text-slate-900">{profile.bossName}</strong>
+                      {profile.bossEmail && <span className="text-slate-500"> ({profile.bossEmail})</span>}
+                    </span>
+                    {onUpdateProfile && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setBossNameInput(profile.bossName || '');
+                          setBossEmailInput(profile.bossEmail || '');
+                          setIsEditingSupervisor(true);
+                        }}
+                        className="text-[11px] text-blue-600 hover:text-blue-800 font-semibold underline cursor-pointer"
+                      >
+                        Edit
+                      </button>
+                    )}
+                  </p>
+                )}
               </div>
             </div>
 
@@ -372,7 +449,7 @@ export const ReportPreviewModal: React.FC<ReportPreviewModalProps> = ({
                           {formatTime12h(log.time?.startTime)}
                         </td>
                         <td className="py-2 px-2 text-center font-mono font-medium text-slate-800">
-                          {formatTime12h(log.time?.endTime)}
+                          {formatTime12h(log.time?.endTime, true)}
                         </td>
                         <td className="py-2 px-2 text-center text-slate-600">
                           {log.time?.lunchDeductionMinutes || 30}m

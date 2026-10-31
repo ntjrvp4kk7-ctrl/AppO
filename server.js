@@ -269,6 +269,23 @@ app.post('/api/auth/logout', (req, res) => {
   res.json({ success: true });
 });
 
+// Delete Account & Associated Data
+app.delete('/api/auth/account', authMiddleware, (req, res) => {
+  const userId = req.userId;
+  // Remove user
+  database.users = database.users.filter((u) => u.id !== userId);
+  // Invalidate any active sessions
+  for (const token in database.sessions) {
+    if (database.sessions[token] === userId) {
+      delete database.sessions[token];
+    }
+  }
+  // Delete user work logs
+  delete database.logs[userId];
+  saveDatabase(database);
+  res.json({ success: true, message: 'Account and data deleted' });
+});
+
 // Get Work Logs for user
 app.get('/api/worklogs', authMiddleware, (req, res) => {
   const userId = req.userId;

@@ -18,6 +18,10 @@ import {
   History,
   ShieldCheck,
   Copy,
+  Camera,
+  HelpCircle,
+  UserX,
+  BookOpen,
 } from 'lucide-react';
 
 import { DailyWorkLog, UserAccount, UnitPhoto, UnitWork, TimeSection } from './types/worklog';
@@ -34,6 +38,8 @@ import {
   restoreUserUnit1324,
   restoreTBRRabbitBizWeek,
   isDemoData,
+  deleteAccountAndResetData,
+  DEFAULT_USER,
 } from './utils/storage';
 import { formatDisplayDate, getTodayISODate, getWeekRange } from './utils/dateUtils';
 
@@ -44,6 +50,7 @@ import { WeeklyPrintView } from './components/WeeklyPrintView';
 import { PhotoViewerModal } from './components/PhotoViewerModal';
 import { SettingsModal } from './components/SettingsModal';
 import { AuthModal } from './components/AuthModal';
+import { TutorialModal } from './components/TutorialModal';
 
 type ActiveTab = 'today' | 'weekly' | 'settings';
 
@@ -65,6 +72,13 @@ export default function App() {
 
   const [viewingPhoto, setViewingPhoto] = useState<{ photo: UnitPhoto; unitLabel?: string } | null>(null);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isTutorialOpen, setIsTutorialOpen] = useState<boolean>(() => {
+    try {
+      return !localStorage.getItem('has_seen_fieldlog_tutorial');
+    } catch {
+      return false;
+    }
+  });
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   useEffect(() => {
@@ -247,6 +261,39 @@ export default function App() {
     showToast('All logs cleared');
   };
 
+  const handleDeletePhotoFromViewer = (photoId: string) => {
+    const updatedUnits = activeLog.units.map((unit) => {
+      const hasPhoto = unit.photos.some((p) => p.id === photoId);
+      if (!hasPhoto) return unit;
+      return {
+        ...unit,
+        photos: unit.photos.filter((p) => p.id !== photoId),
+      };
+    });
+    updateActiveLog({
+      ...activeLog,
+      units: updatedUnits,
+    });
+    setViewingPhoto(null);
+    showToast('Photo deleted');
+  };
+
+  const handleDeleteAccount = async () => {
+    try {
+      await deleteAccountAndResetData(auth.token);
+      setAuth({ token: null, user: DEFAULT_USER });
+      setLogs([]);
+      const today = getTodayISODate();
+      setCurrentDate(today);
+      setActiveLog(getLogForDate(today, []));
+      setIsSettingsOpen(false);
+      showToast('Account & local data deleted');
+    } catch (err) {
+      console.error('Failed deleting account', err);
+      showToast('Account reset');
+    }
+  };
+
   // Helper to generate the 7 days of the active week for the Apple Calendar-style day scrubber
   const currentWeekDays = React.useMemo(() => {
     const range = getWeekRange(currentDate);
@@ -339,8 +386,17 @@ export default function App() {
 
               <button
                 type="button"
+                onClick={() => setIsTutorialOpen(true)}
+                className="p-1.5 text-[#8E8E93] hover:text-[#0A84FF] hover:bg-[#1C1C1E] rounded-full transition-colors cursor-pointer"
+                title="How to Use & Tutorial"
+              >
+                <HelpCircle className="w-4 h-4" />
+              </button>
+
+              <button
+                type="button"
                 onClick={() => setIsSettingsOpen(true)}
-                className="p-1.5 text-[#8E8E93] hover:text-white hover:bg-[#1C1C1E] rounded-full transition-colors"
+                className="p-1.5 text-[#8E8E93] hover:text-white hover:bg-[#1C1C1E] rounded-full transition-colors cursor-pointer"
                 title="Settings"
               >
                 <SettingsIcon className="w-4 h-4" />
@@ -422,6 +478,20 @@ export default function App() {
                   <p className="text-[13px] text-[#8E8E93] mt-1">
                     {activeLog.units.length} unit{activeLog.units.length === 1 ? '' : 's'} logged • {activeLog.time.totalHours} hrs
                   </p>
+                  <div className="flex items-center gap-2 mt-1.5">
+                    <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-[#1C1C1E] border border-[#2C2C2E] text-white shadow-sm">
+                      <Camera className="w-3.5 h-3.5 text-[#0A84FF]" />
+                      <span>{activeLog.units.reduce((acc, u) => acc + (u.photos?.length || 0), 0)} Total Photos</span>
+                      <span className="text-[#8E8E93]">·</span>
+                      <span className="text-[#FF453A] font-semibold">
+                        {activeLog.units.reduce((acc, u) => acc + (u.photos?.filter((p) => p.type === 'before').length || 0), 0)} Before
+                      </span>
+                      <span className="text-[#8E8E93]">/</span>
+                      <span className="text-[#30D158] font-semibold">
+                        {activeLog.units.reduce((acc, u) => acc + (u.photos?.filter((p) => p.type === 'after').length || 0), 0)} After
+                      </span>
+                    </span>
+                  </div>
                 </div>
 
                 <span
@@ -543,6 +613,11 @@ export default function App() {
                 onOpenPhotoViewer={(p, l) => setViewingPhoto({ photo: p, unitLabel: l })}
                 onSaveLogs={(newLogs) => setLogs(newLogs)}
                 onOpenAuth={() => setIsAuthModalOpen(true)}
+                onUpdateProfile={(updated) => {
+                  setAuth({ ...auth, user: updated });
+                  saveStoredAuth(auth.token, updated);
+                  showToast(`Supervisor updated to ${updated.bossName}`);
+                }}
               />
             </div>
           )}
@@ -583,6 +658,29 @@ export default function App() {
                 </button>
               </div>
 
+              {/* Help & Tutorial Card */}
+              <div>
+                <span className="text-[13px] font-semibold uppercase tracking-wider text-[#0A84FF] px-3 mb-1.5 flex items-center gap-1.5">
+                  <BookOpen className="w-4 h-4" /> App Guide & Help
+                </span>
+                <div className="bg-[#1C1C1E] rounded-[16px] border border-[#2C2C2E] overflow-hidden divide-y divide-[#2C2C2E]">
+                  <button
+                    type="button"
+                    onClick={() => setIsTutorialOpen(true)}
+                    className="w-full p-4 text-left flex items-center justify-between text-[15px] text-white hover:bg-[#2C2C2E]/50 cursor-pointer"
+                  >
+                    <div className="flex items-center gap-3">
+                      <HelpCircle className="w-5 h-5 text-[#0A84FF]" />
+                      <div>
+                        <span className="font-semibold block">Interactive App Tutorial</span>
+                        <span className="text-[12px] text-[#8E8E93]">How to track shifts, log units, count photos & export to boss</span>
+                      </div>
+                    </div>
+                    <ChevronRight className="w-4 h-4 text-[#8E8E93]" />
+                  </button>
+                </div>
+              </div>
+
               {/* Data Recovery & Backups Card */}
               <div>
                 <span className="text-[13px] font-semibold uppercase tracking-wider text-[#30D158] px-3 mb-1.5 flex items-center gap-1.5">
@@ -613,10 +711,10 @@ export default function App() {
                   </button>
                   <button
                     type="button"
-                    onClick={handleClearAllData}
+                    onClick={() => setIsSettingsOpen(true)}
                     className="w-full p-4 text-left flex items-center justify-between text-[15px] text-[#FF453A] hover:bg-[#FF453A]/10"
                   >
-                    <span>Clear All Work Logs (Blank Week)</span>
+                    <span>Reset Options & Delete Account...</span>
                     <ChevronRight className="w-4 h-4 text-[#8E8E93]" />
                   </button>
                 </div>
@@ -716,6 +814,7 @@ export default function App() {
         photo={viewingPhoto ? viewingPhoto.photo : null}
         unitLabel={viewingPhoto?.unitLabel}
         onClose={() => setViewingPhoto(null)}
+        onDelete={handleDeletePhotoFromViewer}
       />
 
       {/* Settings Modal */}
@@ -734,6 +833,16 @@ export default function App() {
         onRestoreUnit1324={handleRestoreUnit1324}
         onClearAllData={handleClearAllData}
         onRestoreSnapshotLogs={handleRestoreSnapshotLogs}
+        onOpenTutorial={() => setIsTutorialOpen(true)}
+        onDeleteAccount={handleDeleteAccount}
+      />
+
+      {/* Tutorial Modal */}
+      <TutorialModal
+        isOpen={isTutorialOpen}
+        onClose={() => setIsTutorialOpen(false)}
+        workerName={auth.user.workerName}
+        bossName={auth.user.bossName}
       />
 
       {/* Auth Modal */}
