@@ -20,7 +20,7 @@ import {
   Sparkles,
 } from 'lucide-react';
 import { DailyWorkLog, UserAccount, UnitPhoto } from '../types/worklog';
-import { getWeekRange, shiftWeek, formatShortDate } from '../utils/dateUtils';
+import { getWeekRange, shiftWeek, formatShortDate, formatTime12h } from '../utils/dateUtils';
 import { generateBossEmailContent } from '../utils/storage';
 import { ReportPreviewModal } from './ReportPreviewModal';
 import { downloadOrShareWeeklyPdf } from '../utils/pdfGenerator';
@@ -151,7 +151,7 @@ export const WeeklyReportTab: React.FC<WeeklyReportTabProps> = ({
 
   const handleEmailBoss = () => {
     const emailData = generateBossEmailContent(dates, logs, profile);
-    window.open(emailData.mailtoUrl, '_blank');
+    window.location.href = emailData.mailtoUrl;
   };
 
   const handleCopySummary = () => {
@@ -283,76 +283,31 @@ export const WeeklyReportTab: React.FC<WeeklyReportTabProps> = ({
           <span className="text-[12px] font-semibold uppercase tracking-wider text-[#8e8e93]">
             Export & Send to Boss ({profile.bossName})
           </span>
-          <span className="text-[11px] text-[#0a84ff] font-medium">Android Friendly</span>
+          <span className="text-[11px] text-[#30d158] font-semibold">12-Hour Timesheet</span>
         </div>
 
         <div className="bg-[#1c1c1e] rounded-[16px] border border-[#2c2c2e]/70 overflow-hidden divide-y divide-[#38383a]/40 shadow-sm">
-          {/* PRIMARY OPTION: Standalone Web Report (.html) */}
+          {/* PRIMARY OPTION: Official PDF Report (Never blocked by email, opens on Android & iPhone) */}
           <div
-            onClick={handleDownloadHtmlReport}
-            className="flex items-center justify-between px-4 py-3 cursor-pointer hover:bg-[#252528] active:bg-[#2c2c2e] transition-colors bg-gradient-to-r from-[#0a84ff]/10 to-transparent"
+            onClick={handleDownloadPdf}
+            className="flex items-center justify-between px-4 py-3 cursor-pointer hover:bg-[#252528] active:bg-[#2c2c2e] transition-colors bg-gradient-to-r from-[#0a84ff]/15 to-transparent"
           >
             <div className="flex items-center gap-3">
               <div className="w-8 h-8 rounded-[8px] bg-[#0a84ff] text-white flex items-center justify-center font-bold shadow-sm">
-                <Smartphone className="w-4 h-4 stroke-[2.5]" />
+                <Download className="w-4 h-4 stroke-[2.5]" />
               </div>
               <div>
                 <div className="flex items-center gap-1.5">
-                  <span className="text-[15px] font-semibold text-white block">
-                    Save Web Report (.html)
+                  <span className="text-[15px] font-bold text-white block">
+                    Send / Download PDF Report (.pdf)
                   </span>
-                  <span className="text-[9px] font-bold text-[#0a84ff] bg-[#0a84ff]/20 px-1.5 py-0.5 rounded">
-                    BEST FOR ANDROID
+                  <span className="text-[9px] font-bold text-[#30d158] bg-[#30d158]/20 px-1.5 py-0.5 rounded">
+                    RECOMMENDED FOR BOSS
                   </span>
                 </div>
                 <span className="text-[11px] text-[#8e8e93]">
-                  Boss opens in Android Chrome • All photos visible & unstretched
+                  12-hr timesheet on Page 1 + all unit photos • Never blocked by email
                 </span>
-              </div>
-            </div>
-
-            <div>
-              {htmlDownloadedStatus ? (
-                <span className="text-[12px] font-semibold text-[#30d158] flex items-center gap-1">
-                  <Check className="w-3.5 h-3.5" />
-                  {htmlDownloadedStatus}
-                </span>
-              ) : (
-                <span className="text-[13px] font-semibold text-[#0a84ff]">Download</span>
-              )}
-            </div>
-          </div>
-
-          {/* Row 2: View & Scroll Full Report */}
-          <div
-            onClick={() => setShowPreviewModal(true)}
-            className="flex items-center justify-between px-4 py-3 cursor-pointer hover:bg-[#252528] active:bg-[#2c2c2e] transition-colors"
-          >
-            <div className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-[8px] bg-[#30d158]/20 text-[#30d158] flex items-center justify-center font-bold">
-                <FileText className="w-4 h-4 stroke-[2.2]" />
-              </div>
-              <div>
-                <span className="text-[15px] font-semibold text-white block">View & Print Report</span>
-                <span className="text-[11px] text-[#8e8e93]">Scroll all pages with full photos + 1-tap print</span>
-              </div>
-            </div>
-
-            <ChevronRight className="w-4 h-4 text-[#8e8e93]" />
-          </div>
-
-          {/* Row 3: Direct PDF Download */}
-          <div
-            onClick={handleDownloadPdf}
-            className="flex items-center justify-between px-4 py-3 cursor-pointer hover:bg-[#252528] active:bg-[#2c2c2e] transition-colors"
-          >
-            <div className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-[8px] bg-[#ff453a]/20 text-[#ff453a] flex items-center justify-center font-bold">
-                <Download className="w-4 h-4 stroke-[2.2]" />
-              </div>
-              <div>
-                <span className="text-[15px] font-semibold text-white block">Download PDF Document</span>
-                <span className="text-[11px] text-[#8e8e93]">Page 1 for hours + unit pages</span>
               </div>
             </div>
 
@@ -365,12 +320,34 @@ export const WeeklyReportTab: React.FC<WeeklyReportTabProps> = ({
                   {pdfDownloadedStatus}
                 </span>
               ) : (
-                <span className="text-[13px] font-semibold text-[#0a84ff]">Save PDF</span>
+                <span className="text-[13px] font-semibold text-[#0a84ff]">Get PDF</span>
               )}
             </div>
           </div>
 
-          {/* Row 4: Copy SMS / WhatsApp Text Summary */}
+          {/* Row 2: Email Supervisor (Whole timesheet in email body so boss gets it even without opening attachments) */}
+          <div
+            onClick={handleEmailBoss}
+            className="flex items-center justify-between px-4 py-3 cursor-pointer hover:bg-[#252528] active:bg-[#2c2c2e] transition-colors"
+          >
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-[8px] bg-[#30d158]/20 text-[#30d158] flex items-center justify-center font-bold">
+                <Mail className="w-4 h-4 stroke-[2.2]" />
+              </div>
+              <div>
+                <span className="text-[15px] font-semibold text-white block">
+                  Email Timesheet to {profile.bossName}
+                </span>
+                <span className="text-[11px] text-[#8e8e93] truncate max-w-[220px]">
+                  {profile.bossEmail || 'Full 12-hr timesheet & units written directly in email body'}
+                </span>
+              </div>
+            </div>
+
+            <ChevronRight className="w-4 h-4 text-[#8e8e93]" />
+          </div>
+
+          {/* Row 3: Copy SMS / WhatsApp Text Summary */}
           <div
             onClick={handleCopySummary}
             className="flex items-center justify-between px-4 py-3 cursor-pointer hover:bg-[#252528] active:bg-[#2c2c2e] transition-colors"
@@ -381,7 +358,7 @@ export const WeeklyReportTab: React.FC<WeeklyReportTabProps> = ({
               </div>
               <div>
                 <span className="text-[15px] font-semibold text-white block">Copy Text for SMS / WhatsApp</span>
-                <span className="text-[11px] text-[#8e8e93]">Formatted summary to text your supervisor</span>
+                <span className="text-[11px] text-[#8e8e93]">12-hour breakdown ready to text directly to Jermaine</span>
               </div>
             </div>
 
@@ -395,24 +372,53 @@ export const WeeklyReportTab: React.FC<WeeklyReportTabProps> = ({
             )}
           </div>
 
-          {/* Row 5: Email Supervisor */}
+          {/* Row 4: View & Print Full Report */}
           <div
-            onClick={handleEmailBoss}
+            onClick={() => setShowPreviewModal(true)}
             className="flex items-center justify-between px-4 py-3 cursor-pointer hover:bg-[#252528] active:bg-[#2c2c2e] transition-colors"
           >
             <div className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-[8px] bg-[#0a84ff]/20 text-[#0a84ff] flex items-center justify-center font-bold">
-                <Mail className="w-4 h-4 stroke-[2.2]" />
+              <div className="w-8 h-8 rounded-[8px] bg-[#bf5af2]/20 text-[#bf5af2] flex items-center justify-center font-bold">
+                <FileText className="w-4 h-4 stroke-[2.2]" />
               </div>
               <div>
-                <span className="text-[15px] font-semibold text-white block">Email to {profile.bossName}</span>
-                <span className="text-[11px] text-[#8e8e93] truncate max-w-[200px]">
-                  {profile.bossEmail || 'Send weekly breakdown via email'}
-                </span>
+                <span className="text-[15px] font-semibold text-white block">View & Print Full Report</span>
+                <span className="text-[11px] text-[#8e8e93]">Review all pages with unstretched photos + 1-tap print</span>
               </div>
             </div>
 
             <ChevronRight className="w-4 h-4 text-[#8e8e93]" />
+          </div>
+
+          {/* Row 5: Standalone Web Report (.html) */}
+          <div
+            onClick={handleDownloadHtmlReport}
+            className="flex items-center justify-between px-4 py-3 cursor-pointer hover:bg-[#252528] active:bg-[#2c2c2e] transition-colors opacity-80 hover:opacity-100"
+          >
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-[8px] bg-[#8e8e93]/20 text-[#8e8e93] flex items-center justify-center font-bold">
+                <Smartphone className="w-4 h-4 stroke-[2.2]" />
+              </div>
+              <div>
+                <span className="text-[14px] font-medium text-white block">
+                  Save Web Report (.html)
+                </span>
+                <span className="text-[11px] text-[#8e8e93]">
+                  Offline backup file (Note: Email apps often block .html attachments; use PDF or Email above)
+                </span>
+              </div>
+            </div>
+
+            <div>
+              {htmlDownloadedStatus ? (
+                <span className="text-[12px] font-semibold text-[#30d158] flex items-center gap-1">
+                  <Check className="w-3.5 h-3.5" />
+                  {htmlDownloadedStatus}
+                </span>
+              ) : (
+                <span className="text-[12px] font-medium text-[#8e8e93]">Save file</span>
+              )}
+            </div>
           </div>
         </div>
       </div>
@@ -466,7 +472,7 @@ export const WeeklyReportTab: React.FC<WeeklyReportTabProps> = ({
                       </div>
                       <span className="text-[11px] text-[#8e8e93]">
                         {hasActivity
-                          ? `${log?.time.startTime || '--:--'} – ${log?.time.endTime || '--:--'} • ${units.length} unit${
+                          ? `${formatTime12h(log?.time.startTime)} – ${formatTime12h(log?.time.endTime)} • ${units.length} unit${
                               units.length === 1 ? '' : 's'
                             }`
                           : 'Off Duty'}
@@ -495,7 +501,7 @@ export const WeeklyReportTab: React.FC<WeeklyReportTabProps> = ({
                         <div className="flex items-center gap-2 text-[#8e8e93]">
                           <Clock className="w-3.5 h-3.5" />
                           <span>
-                            {log.time.startTime} to {log.time.endTime} ({log.time.lunchDeductionMinutes}m lunch)
+                            {formatTime12h(log.time.startTime)} to {formatTime12h(log.time.endTime)} ({log.time.lunchDeductionMinutes}m lunch)
                           </span>
                         </div>
                         <span className="font-bold text-white font-mono-numbers">

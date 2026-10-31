@@ -1,4 +1,5 @@
 import { DailyWorkLog, UserAccount, UnitWork, UnitPhoto } from '../types/worklog';
+import { formatTime12h } from './dateUtils';
 
 interface HtmlReportData {
   dates: string[];
@@ -77,8 +78,8 @@ export function generateStandaloneHtmlReport({
       return `
       <tr class="${idx % 2 === 1 ? 'even-row' : ''}">
         <td><strong>${dayName}</strong></td>
-        <td class="text-center font-mono">${log.time?.startTime || '--:--'}</td>
-        <td class="text-center font-mono">${log.time?.endTime || '--:--'}</td>
+        <td class="text-center font-mono">${formatTime12h(log.time?.startTime)}</td>
+        <td class="text-center font-mono">${formatTime12h(log.time?.endTime)}</td>
         <td class="text-center">${log.time?.lunchDeductionMinutes || 30}m</td>
         <td class="text-center font-semibold">${log.units?.length || 0} unit${(log.units?.length || 0) === 1 ? '' : 's'}</td>
         <td class="text-right font-mono font-bold text-success">${(log.time?.totalHours || 0).toFixed(1)} hrs</td>

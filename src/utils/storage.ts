@@ -1,5 +1,5 @@
 import { DailyWorkLog, UserAccount, UnitWork, UnitPhoto } from '../types/worklog';
-import { getTodayISODate, calculateHours, getWeekRange, formatDisplayDate } from './dateUtils';
+import { getTodayISODate, calculateHours, getWeekRange, formatDisplayDate, formatTime12h } from './dateUtils';
 import { RECOVERED_UNIT_1324_LOG, TBRRABBITBIZ_WEEK_LOGS } from './recoveredData';
 import { idbGet, idbSet } from './indexedDb';
 
@@ -458,7 +458,7 @@ export function generateBossEmailContent(
         );
       });
 
-      return `${day}: ${log.time.startTime} - ${log.time.endTime} (${log.time.totalHours.toFixed(1)} hrs) • ${u_count(log.units.length)}`;
+      return `${day}: ${formatTime12h(log.time.startTime)} - ${formatTime12h(log.time.endTime)} (${log.time.totalHours.toFixed(1)} hrs) • ${u_count(log.units.length)}`;
     }
     return `${day}: Off`;
   });

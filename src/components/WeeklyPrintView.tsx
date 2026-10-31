@@ -1,5 +1,6 @@
 import React from 'react';
 import { DailyWorkLog, UserAccount, UnitWork, UnitPhoto } from '../types/worklog';
+import { formatTime12h } from '../utils/dateUtils';
 
 interface WeeklyPrintViewProps {
   dates: string[];
@@ -137,8 +138,8 @@ export const WeeklyPrintView: React.FC<WeeklyPrintViewProps> = ({
                   return (
                     <tr key={dateStr} className="border-b border-slate-200">
                       <td className="py-2 px-3 font-bold text-slate-900">{day}</td>
-                      <td className="py-2 px-3 text-center font-mono font-medium">{log.time?.startTime || '--:--'}</td>
-                      <td className="py-2 px-3 text-center font-mono font-medium">{log.time?.endTime || '--:--'}</td>
+                      <td className="py-2 px-3 text-center font-mono font-medium">{formatTime12h(log.time?.startTime)}</td>
+                      <td className="py-2 px-3 text-center font-mono font-medium">{formatTime12h(log.time?.endTime)}</td>
                       <td className="py-2 px-3 text-center text-slate-600">{log.time?.lunchDeductionMinutes || 30}m</td>
                       <td className="py-2 px-3 text-center font-bold text-slate-800">
                         {(log.units?.length || 0)} unit{(log.units?.length || 0) === 1 ? '' : 's'}

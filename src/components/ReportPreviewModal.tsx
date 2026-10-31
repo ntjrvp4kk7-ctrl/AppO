@@ -20,6 +20,7 @@ import {
   openStandaloneHtmlReport,
 } from '../utils/htmlReportGenerator';
 import { generateBossEmailContent } from '../utils/storage';
+import { formatTime12h } from '../utils/dateUtils';
 
 interface ReportPreviewModalProps {
   isOpen: boolean;
@@ -368,10 +369,10 @@ export const ReportPreviewModal: React.FC<ReportPreviewModalProps> = ({
                       >
                         <td className="py-2 px-3 font-bold text-slate-900">{day}</td>
                         <td className="py-2 px-2 text-center font-mono font-medium text-slate-800">
-                          {log.time?.startTime || '--:--'}
+                          {formatTime12h(log.time?.startTime)}
                         </td>
                         <td className="py-2 px-2 text-center font-mono font-medium text-slate-800">
-                          {log.time?.endTime || '--:--'}
+                          {formatTime12h(log.time?.endTime)}
                         </td>
                         <td className="py-2 px-2 text-center text-slate-600">
                           {log.time?.lunchDeductionMinutes || 30}m

@@ -21,9 +21,22 @@ export function formatShortDate(dateStr: string): string {
   });
 }
 
-export function formatTime12h(time24: string): string {
-  if (!time24) return '';
-  const [h, m] = time24.split(':').map(Number);
+export function formatTime12h(timeStr?: string | null): string {
+  if (!timeStr || !timeStr.trim()) return '--:--';
+  const trimmed = timeStr.trim();
+
+  // If already in 12-hour AM/PM format, normalize spacing and return
+  if (/am|pm/i.test(trimmed)) {
+    return trimmed.replace(/([0-9])([a-zA-Z])/g, '$1 $2').toUpperCase();
+  }
+
+  const parts = trimmed.split(':');
+  if (parts.length < 2) return trimmed;
+
+  const h = parseInt(parts[0], 10);
+  const m = parseInt(parts[1], 10);
+  if (isNaN(h) || isNaN(m)) return trimmed;
+
   const period = h >= 12 ? 'PM' : 'AM';
   const hour12 = h % 12 || 12;
   const minStr = String(m).padStart(2, '0');

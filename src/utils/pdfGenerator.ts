@@ -1,5 +1,6 @@
 import { jsPDF } from 'jspdf';
 import { DailyWorkLog, UserAccount, UnitWork, UnitPhoto } from '../types/worklog';
+import { formatTime12h } from './dateUtils';
 
 export interface ProcessedPhoto {
   dataUrl: string;
@@ -407,8 +408,8 @@ export async function generateWeeklyReportPdf(options: PdfExportOptions): Promis
 
       doc.setFont('helvetica', 'normal');
       doc.setTextColor(51, 65, 85);
-      doc.text(log.time?.startTime || '--:--', colX.in + colX.inW / 2, currentY + 5.5, { align: 'center' });
-      doc.text(log.time?.endTime || '--:--', colX.out + colX.outW / 2, currentY + 5.5, { align: 'center' });
+      doc.text(formatTime12h(log.time?.startTime), colX.in + colX.inW / 2, currentY + 5.5, { align: 'center' });
+      doc.text(formatTime12h(log.time?.endTime), colX.out + colX.outW / 2, currentY + 5.5, { align: 'center' });
       doc.text(`${log.time?.lunchDeductionMinutes || 30}m`, colX.lunch + colX.lunchW / 2, currentY + 5.5, { align: 'center' });
 
       doc.setFont('helvetica', 'bold');
