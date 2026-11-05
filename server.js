@@ -74,6 +74,8 @@ if (!database.logs[tbrUser.id] || database.logs[tbrUser.id].length === 0) {
           paintColor: 'Mini Nail Hole Fixes',
           notes: '1324 2 Bedroom / Olympus. Found small holes/drywall damage, patched with mud, sanded smooth, rolled paint, cleaned floors.',
           isCompleted: true,
+          startTime: '09:00',
+          endTime: '16:30',
           photos: []
         }
       ]
@@ -90,6 +92,8 @@ if (!database.logs[tbrUser.id] || database.logs[tbrUser.id].length === 0) {
           paintColor: 'Standard Turnover',
           notes: '3 Bedroom / Legends North (10:30 am - 7:00 pm). Repaired drywall, rolled walls, trim touched up, floors cleaned.',
           isCompleted: true,
+          startTime: '10:30',
+          endTime: '19:00',
           photos: []
         }
       ]
@@ -106,6 +110,8 @@ if (!database.logs[tbrUser.id] || database.logs[tbrUser.id].length === 0) {
           paintColor: 'Standard Paint',
           notes: 'Start: 9:00 am - Finish: 3:00 pm. 1 Bedroom unit repairs and paint at Marsh Point.',
           isCompleted: true,
+          startTime: '09:00',
+          endTime: '15:00',
           photos: []
         },
         {
@@ -114,6 +120,8 @@ if (!database.logs[tbrUser.id] || database.logs[tbrUser.id].length === 0) {
           paintColor: 'Touch-up & Trim',
           notes: 'Start: 4:00 pm - Finish: 5:00 pm. Wall patch and paint touch-up at Old Folks Home.',
           isCompleted: true,
+          startTime: '16:00',
+          endTime: '17:00',
           photos: []
         }
       ]
@@ -130,6 +138,8 @@ if (!database.logs[tbrUser.id] || database.logs[tbrUser.id].length === 0) {
           paintColor: 'Standard Paint',
           notes: 'Start: 9:30 am - Finish: 3:30 pm. 1 Bedroom unit repairs and paint at Olympus.',
           isCompleted: true,
+          startTime: '09:30',
+          endTime: '15:30',
           photos: []
         }
       ]
@@ -146,6 +156,8 @@ if (!database.logs[tbrUser.id] || database.logs[tbrUser.id].length === 0) {
           paintColor: 'Primer & Repairs',
           notes: 'Start: 9:30 am - Finish: 4:30 pm. Tons Of Repairs. Day 1 Primed all walls and doors and ceilings.',
           isCompleted: true,
+          startTime: '09:30',
+          endTime: '16:30',
           photos: []
         }
       ]

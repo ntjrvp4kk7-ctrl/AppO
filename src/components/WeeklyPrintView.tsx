@@ -235,10 +235,15 @@ export const WeeklyPrintView: React.FC<WeeklyPrintViewProps> = ({
                 <h2 className="text-2xl font-black uppercase tracking-tight text-slate-950 mt-1">
                   {unit.unitNumber || `Unit #${idx + 1}`}
                 </h2>
-                <div className="flex items-center gap-2 mt-1">
+                <div className="flex flex-wrap items-center gap-2 mt-1">
                   {unit.paintColor && (
                     <span className="text-xs text-slate-700 bg-slate-100 px-2 py-0.5 rounded border border-slate-200 font-semibold">
                       Paint: {unit.paintColor}
+                    </span>
+                  )}
+                  {unit.startTime && (
+                    <span className="text-xs text-blue-900 bg-blue-50 px-2 py-0.5 rounded border border-blue-200 font-bold font-mono">
+                      ⏱️ Arrived: {formatTime12h(unit.startTime)} – Left: {formatTime12h(unit.endTime, true)}
                     </span>
                   )}
                   <span className="text-xs font-bold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">

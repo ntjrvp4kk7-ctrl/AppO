@@ -138,6 +138,7 @@ export function generateStandaloneHtmlReport({
             <h2 class="unit-title">${escapeHtml(unit.unitNumber || `Unit #${idx + 1}`)}</h2>
             <div class="unit-badges">
               ${unit.paintColor ? `<span class="badge badge-gray">Paint: ${escapeHtml(unit.paintColor)}</span>` : ''}
+              ${unit.startTime ? `<span class="badge" style="background: #eff6ff; color: #1e40af; border: 1px solid #bfdbfe; font-family: monospace; font-weight: bold;">⏱️ Arrived: ${formatTime12h(unit.startTime)} – Left: ${formatTime12h(unit.endTime, true)}</span>` : ''}
               <span class="badge badge-green">✓ Finished, Painted & Cleaned</span>
             </div>
           </div>

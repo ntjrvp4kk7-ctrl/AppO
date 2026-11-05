@@ -73,6 +73,73 @@ export function calculateHours(startTime: string, endTime: string, breakMinutes:
   return { totalHours, regularHours, overtimeHours };
 }
 
+export function getCurrentTime24h(): string {
+  const now = new Date();
+  const h = String(now.getHours()).padStart(2, '0');
+  const m = String(now.getMinutes()).padStart(2, '0');
+  return `${h}:${m}`;
+}
+
+export function getCurrentTime12h(): string {
+  return formatTime12h(getCurrentTime24h(), false);
+}
+
+export function formatElapsedSeconds(totalSeconds: number): string {
+  const s = Math.max(0, Math.floor(totalSeconds));
+  const hrs = Math.floor(s / 3600);
+  const mins = Math.floor((s % 3600) / 60);
+  const secs = s % 60;
+  if (hrs > 0) {
+    return `${hrs}h ${mins}m ${secs}s`;
+  }
+  return `${mins}m ${secs}s`;
+}
+
+export function calculateUnitDuration(
+  startTime?: string | null,
+  endTime?: string | null
+): { durationHours: number; formattedDuration: string } {
+  if (!startTime || !endTime) {
+    return { durationHours: 0, formattedDuration: '' };
+  }
+
+  const parseToMinutes = (t: string, isEnd: boolean): number => {
+    const trimmed = t.trim();
+    const isPm = /pm/i.test(trimmed);
+    const isAm = /am/i.test(trimmed);
+    const clean = trimmed.replace(/[^\d:]/g, '');
+    const parts = clean.split(':').map(Number);
+    let h = parts[0] || 0;
+    const m = parts[1] || 0;
+    if (isPm && h < 12) h += 12;
+    if (isAm && h === 12) h = 0;
+    if (!isPm && !isAm && isEnd && h >= 1 && h <= 7) h += 12;
+    return h * 60 + m;
+  };
+
+  const startMin = parseToMinutes(startTime, false);
+  let endMin = parseToMinutes(endTime, true);
+  if (endMin < startMin) {
+    endMin += 24 * 60;
+  }
+
+  const diffMinutes = Math.max(0, endMin - startMin);
+  const hours = Math.round((diffMinutes / 60) * 10) / 10;
+  const hPart = Math.floor(diffMinutes / 60);
+  const mPart = diffMinutes % 60;
+
+  let formatted = '';
+  if (hPart > 0 && mPart > 0) {
+    formatted = `${hPart}h ${mPart}m`;
+  } else if (hPart > 0) {
+    formatted = `${hPart} hrs`;
+  } else {
+    formatted = `${mPart} mins`;
+  }
+
+  return { durationHours: hours, formattedDuration: formatted };
+}
+
 /**
  * Returns Monday and Sunday for the week containing the given date
  */

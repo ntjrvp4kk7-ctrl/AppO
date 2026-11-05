@@ -486,8 +486,11 @@ export function generateBossEmailContent(
       log.units.forEach((u) => {
         const beforeCount = u.photos.filter((p) => p.type === 'before').length;
         const afterCount = u.photos.filter((p) => p.type === 'after').length;
+        const unitTimeStr = u.startTime
+          ? ` (Arrived: ${formatTime12h(u.startTime)} – Left: ${formatTime12h(u.endTime, true)})`
+          : '';
         unitSummaries.push(
-          `• [${dateStr}] ${u.unitNumber}: ${u.paintColor || 'Standard'} | ${u.notes || 'Patched and painted'} (${beforeCount} before pics, ${afterCount} after pics)`
+          `• [${dateStr}] ${u.unitNumber}${unitTimeStr}: ${u.paintColor || 'Standard'} | ${u.notes || 'Patched and painted'} (${beforeCount} before pics, ${afterCount} after pics)`
         );
       });
 

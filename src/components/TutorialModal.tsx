@@ -51,18 +51,18 @@ export const TutorialModal: React.FC<TutorialModalProps> = ({
     },
     {
       stepNumber: 2,
-      badge: 'Step 2 of 4 · Units Serviced',
+      badge: 'Step 2 of 4 · Units & Timers',
       badgeColor: 'bg-[#FF9F0A]/20 text-[#FF9F0A] border-[#FF9F0A]/30',
-      title: 'Log Units & Turnover Notes',
+      title: 'Log Units, Arrived & Left Times',
       icon: Paintbrush,
       iconColor: 'bg-[#FF9F0A] text-black',
-      headline: 'Record Every Apartment & Job Details',
+      headline: 'Record Every Apartment & Unit Shift Hours',
       description:
-        'Add units for each property serviced during your shift. Track paint colors, drywall repairs, and scope notes so your supervisor knows exactly what was completed.',
+        'Add units for each property serviced during your shift. Track when you arrived at and left each unit, run live unit timers, and record turnover notes so your supervisor knows exactly where and when you worked.',
       highlights: [
-        { label: 'Unit Identifier', desc: 'Enter unit number (e.g. 1324 2BR / Olympus)' },
-        { label: 'Paint & Color Codes', desc: 'Record wall/trim colors (e.g. Agreeable Gray)' },
-        { label: 'Copy Prior Day', desc: 'Tap "Copy From Yesterday" to clone repeat units instantly' },
+        { label: 'Arrived & Left Clocks', desc: 'Tap "Now" or punch in exact unit arrival & departure times' },
+        { label: 'Live Unit Timer', desc: 'Start a live timer while working on each unit, then tap "Left Unit Now"' },
+        { label: 'Unit Scope & Colors', desc: 'Enter unit number, wall/trim colors, and drywall repair notes' },
       ],
     },
     {

@@ -1,7 +1,27 @@
-import React, { useRef, useState } from 'react';
-import { Camera, Trash2, Check, Paintbrush, FileText, Images, Loader2, FolderOpen, Upload } from 'lucide-react';
+import React, { useRef, useState, useEffect } from 'react';
+import {
+  Camera,
+  Trash2,
+  Check,
+  Paintbrush,
+  FileText,
+  Images,
+  Loader2,
+  FolderOpen,
+  Upload,
+  Clock,
+  Play,
+  Square,
+  RotateCcw,
+} from 'lucide-react';
 import { UnitWork, UnitPhoto } from '../types/worklog';
 import { compressImage } from '../utils/photoUtils';
+import {
+  formatTime12h,
+  getCurrentTime24h,
+  calculateUnitDuration,
+  formatElapsedSeconds,
+} from '../utils/dateUtils';
 
 interface UnitWorkCardProps {
   unit: UnitWork;
@@ -21,6 +41,79 @@ export const UnitWorkCard: React.FC<UnitWorkCardProps> = ({
   const afterCameraRef = useRef<HTMLInputElement>(null);
   const afterGalleryRef = useRef<HTMLInputElement>(null);
   const [isProcessing, setIsProcessing] = useState<'before' | 'after' | null>(null);
+
+  const unitDuration = calculateUnitDuration(unit.startTime, unit.endTime);
+
+  const [elapsedSeconds, setElapsedSeconds] = useState<number>(() => {
+    if (unit.timerRunning && unit.timerStartedAt) {
+      return Math.max(0, Math.floor((Date.now() - unit.timerStartedAt) / 1000));
+    }
+    return 0;
+  });
+
+  useEffect(() => {
+    let interval: NodeJS.Timeout | null = null;
+    if (unit.timerRunning && unit.timerStartedAt) {
+      setElapsedSeconds(Math.max(0, Math.floor((Date.now() - unit.timerStartedAt) / 1000)));
+      interval = setInterval(() => {
+        setElapsedSeconds(Math.max(0, Math.floor((Date.now() - unit.timerStartedAt!) / 1000)));
+      }, 1000);
+    } else {
+      setElapsedSeconds(0);
+    }
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [unit.timerRunning, unit.timerStartedAt]);
+
+  const handleStartTimer = () => {
+    const nowTime = getCurrentTime24h();
+    onUpdateUnit({
+      ...unit,
+      startTime: unit.startTime || nowTime,
+      timerRunning: true,
+      timerStartedAt: Date.now(),
+    });
+  };
+
+  const handleStopTimer = () => {
+    const nowTime = getCurrentTime24h();
+    onUpdateUnit({
+      ...unit,
+      endTime: nowTime,
+      timerRunning: false,
+      timerStartedAt: undefined,
+      isCompleted: true,
+    });
+  };
+
+  const handleSetStartNow = () => {
+    const nowTime = getCurrentTime24h();
+    onUpdateUnit({
+      ...unit,
+      startTime: nowTime,
+    });
+  };
+
+  const handleSetEndNow = () => {
+    const nowTime = getCurrentTime24h();
+    onUpdateUnit({
+      ...unit,
+      endTime: nowTime,
+      timerRunning: false,
+      timerStartedAt: undefined,
+    });
+  };
+
+  const handleClearTimes = () => {
+    onUpdateUnit({
+      ...unit,
+      startTime: undefined,
+      endTime: undefined,
+      timerRunning: false,
+      timerStartedAt: undefined,
+    });
+  };
 
   const handleCapture = async (e: React.ChangeEvent<HTMLInputElement>, type: 'before' | 'after') => {
     const files = e.target.files;
@@ -134,8 +227,8 @@ export const UnitWorkCard: React.FC<UnitWorkCardProps> = ({
             />
           </div>
 
-          {/* Prominent Unit Photo Count Badge */}
-          <div className="flex items-center gap-2 pt-0.5">
+          {/* Prominent Unit Photo Count & Time Badges */}
+          <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
             <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-[#2c2c2e] border border-[#3a3a3c] text-white shadow-sm">
               <Camera className="w-3.5 h-3.5 text-[#0a84ff]" />
               <span>{unit.photos.length} Total {unit.photos.length === 1 ? 'Photo' : 'Photos'}</span>
@@ -144,6 +237,18 @@ export const UnitWorkCard: React.FC<UnitWorkCardProps> = ({
               <span className="text-[#8e8e93]">/</span>
               <span className="text-[#30d158]">{afterPhotos.length} After</span>
             </span>
+
+            {unit.startTime && (
+              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-[#0a84ff]/15 border border-[#0a84ff]/30 text-[#0a84ff] font-mono shadow-sm">
+                <Clock className="w-3 h-3" />
+                <span>
+                  {formatTime12h(unit.startTime)} – {unit.endTime ? formatTime12h(unit.endTime, true) : 'Active'}
+                </span>
+                {unitDuration.durationHours > 0 && (
+                  <span className="text-white/80 font-normal">({unitDuration.formattedDuration})</span>
+                )}
+              </span>
+            )}
           </div>
         </div>
 
@@ -168,6 +273,125 @@ export const UnitWorkCard: React.FC<UnitWorkCardProps> = ({
           onChange={(e) => onUpdateUnit({ ...unit, notes: e.target.value })}
           className="w-full bg-transparent text-[13px] text-white placeholder-[#8e8e93] focus:outline-none"
         />
+      </div>
+
+      {/* Unit Timing: Arrived at Unit & Left Unit */}
+      <div className="bg-[#242426] rounded-[14px] p-3 border border-[#38383a]/80 space-y-2.5 shadow-sm">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-1.5">
+            <Clock className="w-4 h-4 text-[#0a84ff]" />
+            <span className="text-[12px] font-bold text-white uppercase tracking-wider">
+              Unit Hours · Arrived & Left
+            </span>
+          </div>
+
+          {unit.timerRunning ? (
+            <span className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-[#30d158]/20 text-[#30d158] border border-[#30d158]/40 animate-pulse font-mono">
+              <span className="w-1.5 h-1.5 rounded-full bg-[#30d158]" />
+              Timer: {formatElapsedSeconds(elapsedSeconds)}
+            </span>
+          ) : unitDuration.durationHours > 0 ? (
+            <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-[#0a84ff]/15 text-[#0a84ff] border border-[#0a84ff]/30 font-mono">
+              ⏱️ {unitDuration.formattedDuration} on unit
+            </span>
+          ) : null}
+        </div>
+
+        {/* Arrived & Left 2-Column Clock Grid */}
+        <div className="grid grid-cols-2 gap-2">
+          {/* ARRIVED AT UNIT */}
+          <div className="bg-[#1c1c1e] p-2.5 rounded-[10px] border border-[#3a3a3c]/60 flex flex-col justify-between">
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-[#8e8e93]">
+                Arrived Unit
+              </span>
+              <button
+                type="button"
+                onClick={handleSetStartNow}
+                className="text-[10px] font-bold text-[#0a84ff] hover:text-white bg-[#0a84ff]/15 hover:bg-[#0a84ff] px-1.5 py-0.5 rounded transition-colors cursor-pointer"
+                title="Stamp current time as arrived at this unit"
+              >
+                Now
+              </button>
+            </div>
+            
+            <div className="flex items-center justify-between gap-1 mt-1">
+              <div className="text-[15px] font-extrabold text-white font-mono">
+                {unit.startTime ? formatTime12h(unit.startTime) : <span className="text-[#636366] text-[13px] font-normal">--:--</span>}
+              </div>
+              <input
+                type="time"
+                value={unit.startTime || ''}
+                onChange={(e) => onUpdateUnit({ ...unit, startTime: e.target.value })}
+                className="w-7 h-7 p-0 bg-[#2c2c2e] hover:bg-[#38383a] rounded text-transparent cursor-pointer border border-[#48484a]"
+                title="Change arrived time"
+              />
+            </div>
+          </div>
+
+          {/* LEFT UNIT */}
+          <div className="bg-[#1c1c1e] p-2.5 rounded-[10px] border border-[#3a3a3c]/60 flex flex-col justify-between">
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-[#8e8e93]">
+                Left Unit
+              </span>
+              <button
+                type="button"
+                onClick={handleSetEndNow}
+                className="text-[10px] font-bold text-[#30d158] hover:text-white bg-[#30d158]/15 hover:bg-[#30d158] px-1.5 py-0.5 rounded transition-colors cursor-pointer"
+                title="Stamp current time as left this unit"
+              >
+                Now
+              </button>
+            </div>
+
+            <div className="flex items-center justify-between gap-1 mt-1">
+              <div className="text-[15px] font-extrabold text-white font-mono">
+                {unit.endTime ? formatTime12h(unit.endTime, true) : <span className="text-[#636366] text-[13px] font-normal">--:--</span>}
+              </div>
+              <input
+                type="time"
+                value={unit.endTime || ''}
+                onChange={(e) => onUpdateUnit({ ...unit, endTime: e.target.value })}
+                className="w-7 h-7 p-0 bg-[#2c2c2e] hover:bg-[#38383a] rounded text-transparent cursor-pointer border border-[#48484a]"
+                title="Change left time"
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* Live Timer Control Bar */}
+        {unit.timerRunning ? (
+          <button
+            type="button"
+            onClick={handleStopTimer}
+            className="w-full py-2 bg-[#ff453a] hover:bg-[#e0382e] active:scale-[0.98] text-white font-bold rounded-[10px] text-[12px] flex items-center justify-center gap-1.5 shadow-sm transition-all cursor-pointer"
+          >
+            <Square className="w-3.5 h-3.5 fill-current" />
+            <span>Left Unit Now (Stop Timer & Mark Finished)</span>
+          </button>
+        ) : (
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={handleStartTimer}
+              className="flex-1 py-1.5 bg-[#0a84ff]/15 hover:bg-[#0a84ff]/25 active:scale-[0.98] text-[#0a84ff] border border-[#0a84ff]/30 font-semibold rounded-[10px] text-[12px] flex items-center justify-center gap-1.5 transition-all cursor-pointer"
+            >
+              <Play className="w-3 h-3 fill-current" />
+              <span>{unit.startTime ? 'Start Timer on Unit' : 'Clock In / Start Timer on Unit'}</span>
+            </button>
+            {(unit.startTime || unit.endTime) && (
+              <button
+                type="button"
+                onClick={handleClearTimes}
+                className="px-2.5 py-1.5 bg-[#2c2c2e] hover:bg-[#38383a] text-[#8e8e93] hover:text-white rounded-[10px] text-[11px] font-medium transition-colors cursor-pointer"
+                title="Reset unit clock times"
+              >
+                <RotateCcw className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Before & After Photo Sections (Apple Photos Style) */}

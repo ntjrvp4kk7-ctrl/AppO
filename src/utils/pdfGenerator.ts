@@ -647,26 +647,37 @@ export async function generateWeeklyReportPdf(options: PdfExportOptions): Promis
         doc.setTextColor(15, 23, 42); // slate-900
         doc.text(unit.unitNumber || `Unit #${uPage.unitIdx + 1}`, marginX, 35);
 
-        // Paint and Status Badges (Cleanly placed, no text collision)
+        // Paint, Time, and Status Badges (Cleanly placed, no text collision)
         let badgeX = marginX;
         if (unit.paintColor) {
           doc.setFillColor(241, 245, 249);
           doc.setDrawColor(203, 213, 225);
-          doc.roundedRect(badgeX, 39, 65, 6.5, 1, 1, 'FD');
+          doc.roundedRect(badgeX, 39, 55, 6.5, 1, 1, 'FD');
           doc.setFont('helvetica', 'bold');
-          doc.setFontSize(8);
+          doc.setFontSize(7.5);
           doc.setTextColor(51, 65, 85);
           doc.text(`Paint: ${unit.paintColor}`, badgeX + 3, 43.5);
-          badgeX += 70;
+          badgeX += 58;
+        }
+
+        if (unit.startTime) {
+          doc.setFillColor(239, 246, 255);
+          doc.setDrawColor(191, 219, 254);
+          doc.roundedRect(badgeX, 39, 68, 6.5, 1, 1, 'FD');
+          doc.setFont('helvetica', 'bold');
+          doc.setFontSize(7.5);
+          doc.setTextColor(30, 64, 175);
+          doc.text(`Arrived: ${formatTime12h(unit.startTime)} - Left: ${formatTime12h(unit.endTime, true)}`, badgeX + 3, 43.5);
+          badgeX += 71;
         }
 
         doc.setFillColor(236, 253, 245);
         doc.setDrawColor(167, 243, 208);
-        doc.roundedRect(badgeX, 39, 68, 6.5, 1, 1, 'FD');
+        doc.roundedRect(badgeX, 39, 56, 6.5, 1, 1, 'FD');
         doc.setFont('helvetica', 'bold');
-        doc.setFontSize(8);
+        doc.setFontSize(7.5);
         doc.setTextColor(5, 150, 105);
-        doc.text('✓ Finished, Painted & Cleaned', badgeX + 3, 43.5);
+        doc.text('✓ Finished & Cleaned', badgeX + 3, 43.5);
 
         // Divider line
         doc.setDrawColor(15, 23, 42);

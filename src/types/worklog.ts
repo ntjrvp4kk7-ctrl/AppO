@@ -13,6 +13,10 @@ export interface UnitWork {
   notes?: string; // e.g. "Patched small hole behind door, painted living room, cleaned floor"
   photos: UnitPhoto[];
   isCompleted: boolean;
+  startTime?: string; // Arrived time e.g. "09:30" or "09:30 AM"
+  endTime?: string; // Left time e.g. "15:30" or "03:30 PM"
+  timerRunning?: boolean; // Live unit timer active
+  timerStartedAt?: number; // Epoch timestamp (ms) when unit timer started
 }
 
 export interface TimeSection {

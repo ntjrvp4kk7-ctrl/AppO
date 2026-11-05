@@ -597,7 +597,14 @@ export const WeeklyReportTab: React.FC<WeeklyReportTabProps> = ({
                               className="p-3 bg-[#1c1c1e] rounded-[12px] border border-[#2c2c2e] space-y-2"
                             >
                               <div className="flex justify-between items-center text-[13px] font-bold text-white">
-                                <span>{unit.unitNumber || 'Unit'}</span>
+                                <div className="flex items-center gap-2">
+                                  <span>{unit.unitNumber || 'Unit'}</span>
+                                  {unit.startTime && (
+                                    <span className="text-[10px] font-mono font-semibold px-2 py-0.5 rounded-full bg-[#0a84ff]/20 text-[#0a84ff] border border-[#0a84ff]/30">
+                                      {formatTime12h(unit.startTime)} – {formatTime12h(unit.endTime, true)}
+                                    </span>
+                                  )}
+                                </div>
                                 {unit.paintColor && (
                                   <span className="text-[11px] font-normal text-[#8e8e93]">
                                     Paint: {unit.paintColor}

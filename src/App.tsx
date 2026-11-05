@@ -194,6 +194,9 @@ export default function App() {
       notes: u.notes || '',
       photos: [], // clone unit details MINUS photos as requested
       isCompleted: false,
+      startTime: undefined,
+      endTime: undefined,
+      timerRunning: false,
     }));
 
     updateActiveLog({
